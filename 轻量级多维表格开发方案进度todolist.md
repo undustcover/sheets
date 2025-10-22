@@ -355,25 +355,29 @@
 - 备注：
 ```
 
-## 进度更新（2025-10-22）
-- 新增 [M1-05A] 记录查询分页/过滤/排序接口（状态：completed）
-  - 描述：实现 `GET /api/tables/:id/records` 支持 `page/size/filters/sort`。
-  - 产出：控制器查询参数解析；服务层过滤/排序与返回 `data/page/size/total`。
-  - 验收：使用管理员 Token 验证过滤 `Price>700` 且按 `Price desc` 返回正确数据。
+## 进度更新（2025-10-22，补充）
+- 新增 [M1-05C] 单元格批量写入接口与并发控制（状态：completed）
+  - 描述：实现 `POST /api/tables/:tableId/cells/batch`，服务端事务写入、公式重算、表版本递增与审计。
+  - 权限：`JwtAuthGuard` + `RolesGuard`（允许 `editor/exporter/admin`）。
+  - 并发：校验请求 `revision` 与 `tables.revision`，不一致返回 `409 REVISION_CONFLICT` 并附带 `latestRevision`。
+  - 校验：类型化校验与强制转换（`text/number/boolean/select/multi_select/date/attachment/formula`），含长度/范围/精度约束与只读行/列拒绝写入。
+  - 事务：`upsert cell_values` → 受影响记录公式重算 → `tables.revision++` → 写审计日志。
+  - 集成：`CellsModule` 已注册至 `AppModule`，路由 `/api/tables/:tableId/cells/batch` 可用。
+  - 异常过滤：扩展 `HttpExceptionFilter` 映射 `409 → REVISION_CONFLICT`，统一错误响应结构。
 
-- 新增 [M1-05B] 公式同步计算（状态：completed）
-  - 描述：在记录创建/更新后，同步计算公式字段值。
-  - 产出：服务层 `computeFormulas` 与安全求值器（四则运算 + 字段引用）。
-  - 验收：`values["9"]` 从 `null` 计算为 `637.4915`，精度受 `options_json.precision` 控制。
+- Git 与 CI（状态：in_progress）
+  - 仓库：已创建根级 `.gitignore` 并完成一次主分支推送；新增 GitHub Actions 工作流（Server Build&Test / Web Build），本地已提交，受网络影响暂未推送成功。
+  - 版本：本地已创建标签 `v0.0.1`，待网络恢复后执行 `git push origin v0.0.1`。
+  - 分支保护：计划在 GitHub 设置 `Require PR` 与 `Require status checks`（选择 `Server Build & Test`、`Web Build`）。
 
-- [M1-03] 认证与角色（状态：in_progress）进展
-  - 已完成：全局校验、异常过滤器、登录限流、`JwtAuthGuard/RolesGuard` 雏形与 `/api/auth/admin-check`。
-  - 待完成：密码哈希与用户种子、Users 管理接口接入 RolesGuard、审计日志。
+- 状态校准
+  - [M1-05] 记录与单元格写入：服务端批量写入与并发控制已完成（见 [M1-05C]），整体任务仍保留为 `pending` 以等待前端接入与测试闭环。
+  - [M1-10] 版本控制与并发：异常映射与服务端冲突返回已完成（`409 REVISION_CONFLICT`），整体任务保留为 `pending`，后续覆盖视图版本与前端冲突提示。
 
-- 下步计划（高优先）
-  - 完成 Users 管理与密码哈希/种子（收敛 M1-03）。
-  - 表/字段 CRUD 契约与实现（M1-04），含只读与 options_json 解析。
-  - 记录与单元格批量写入契约（M1-05），含事务与 `revision`。
-  - 统一查询层与视图契约草拟（M1-06），为前端集成做准备。
-
+- 下步计划（补充）
+  - 推送 `ci.yml` 与 `v0.0.1` 标签至 GitHub，启用主分支保护与必要检查。
+  - 完成 M1-03 用户/角色管理（密码哈希与种子、接口接入 RolesGuard），补齐审计日志写入点。
+  - 完成 M1-04 表与字段 CRUD（只读与 `options_json` 解析）。
+  - 为 M1-05 编写集成/E2E 测试覆盖批量保存与冲突场景。
+  - 前端推进 M2-05：批量保存与 `409` 冲突提示与刷新流程（含网格脏标记与 revision 绑定）。
 —— 完 ——
