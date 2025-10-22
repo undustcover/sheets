@@ -1,0 +1,168 @@
+// Prisma Schema 草稿（SQLite）
+// provider = "sqlite"
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  viewer
+  editor
+  exporter
+  admin
+}
+
+enum FieldType {
+  text
+  number
+  date
+  boolean
+  select
+  multi_select
+  attachment
+  formula
+}
+
+enum ViewType {
+  grid
+  kanban
+  gallery
+}
+
+enum LogAction {
+  login
+  create_table
+  update_table
+  delete_table
+  create_view
+  update_view
+  delete_view
+  import
+  export
+  write_cells
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  username String @unique
+  password String
+  role     Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Table {
+  id       Int    @id @default(autoincrement())
+  name     String
+  revision Int    @default(0)
+  metaJson Json   @default("{}")
+  exportAllowedRoles Json @default("[\"editor\",\"exporter\",\"admin\"]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  fields   Field[]
+  records  Record[]
+  views    View[]
+}
+
+model Field {
+  id        Int       @id @default(autoincrement())
+  tableId   Int
+  name      String
+  type      FieldType
+  optionsJson Json   @default("{}") // select/multi_select 选项等
+  readonly  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  cells   CellValue[]
+
+  @@index([tableId])
+}
+
+model Record {
+  id        Int       @id @default(autoincrement())
+  tableId   Int
+  readonly  Boolean   @default(false)
+  metaJson  Json      @default("{}")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  cells   CellValue[]
+
+  @@index([tableId])
+}
+
+model CellValue {
+  id        Int      @id @default(autoincrement())
+  recordId  Int
+  fieldId   Int
+  valueJson Json     @default("null")
+  formulaExpr String? // 单元格级公式或字段公式表达式
+  computedAt DateTime? // 计算时间
+  isDirty   Boolean  @default(false) // 用于标识待计算或无效
+
+  record   Record @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  field    Field  @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([recordId, fieldId])
+  @@index([recordId])
+  @@index([fieldId])
+}
+
+model View {
+  id         Int      @id @default(autoincrement())
+  tableId    Int
+  name       String
+  type       ViewType
+  configJson Json     @default("{}") // 过滤/排序/分组/聚合
+  anonymousEnabled Boolean @default(false)
+  revision   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  table   Table @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId])
+}
+
+model Attachment {
+  id         Int      @id @default(autoincrement())
+  tableId    Int
+  recordId   Int?
+  filename   String
+  storedName String // 重命名后的唯一文件名
+  mime       String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  table   Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  record  Record @relation(fields: [recordId], references: [id], onDelete: SetNull)
+
+  @@index([tableId])
+  @@index([recordId])
+}
+
+model Log {
+  id        Int      @id @default(autoincrement())
+  action    LogAction
+  userId    Int?
+  tableId   Int?
+  viewId    Int?
+  count     Int? // 导出记录数或写入条数等
+  createdAt DateTime @default(now())
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  table Table? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  view  View?  @relation(fields: [viewId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([tableId])
+  @@index([viewId])
+}

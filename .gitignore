@@ -1,0 +1,19 @@
+# Node
+node_modules/
+
+# Build outputs
+server/dist/
+web/dist/
+
+# Environment and local data
+server/.env
+server/data/
+uploads/
+
+# IDE and logs
+.vscode/
+*.log
+*.tmp
+
+# Prisma artifacts
+server/prisma/migrations/

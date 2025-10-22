@@ -1,0 +1,9 @@
+{
+  "name": "sheets",
+  "private": true,
+  "packageManager": "pnpm@10",
+  "workspaces": ["server", "web"],
+  "engines": {
+    "node": ">=20"
+  }
+}
