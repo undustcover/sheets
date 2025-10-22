@@ -123,15 +123,23 @@
 - 验收：契约清晰；示例请求响应。
 - 预计耗时：1.5 天。
 
-7) [M1-07] 附件上传与下载（状态：pending）
+7) [M1-07] 附件上传与下载（状态：completed）
 - 描述：`POST /attachments/upload`、`GET /attachments/:id/download`；大小/类型校验与重命名策略。
-- 产出：接口契约与存储结构说明。
+- 产出：接口契约与存储结构说明；E2E 覆盖上传与下载（文本示例）。
 - 依赖：M1-02。
-- 执行步骤：Multer 配置；路径方案；硬删流程。
-- 验收：契约与示例；错误处理清晰。
+- 执行步骤：Multer 配置；路径方案；硬删流程；下载对 `text/plain` 直接返回文本，其余流式附件。
+- 验收：契约与示例；错误处理清晰；E2E 通过。
 - 预计耗时：1 天。
+- 备注：已于 2025-10-22 完成；修复 Jest 环境下动态导入与 MIME 设置问题；完善下载响应头；E2E 通过。
 
-8) [M1-08] 导入导出接口（状态：pending）
+8) [M1-08] 导入导出接口（状态：in_progress）
+- 描述：`POST /tables/:id/import`、`POST /views/:id/export`、`POST /tables/:id/export`；宽松匹配与新字段创建（导入）。
+- 产出：视图与表级 CSV 导出；审计记录；导入设计未实现。
+- 依赖：M1-02、M1-04、M1-05。
+- 执行步骤：导出使用 `RecordsService.list` 聚合数据、按字段顺序生成 CSV、记录日志；导入解析策略待实现。
+- 验收：导出 E2E 通过；权限生效；导入计划明确。
+- 预计耗时：1.5 天（导出已完结部分）。
+- 备注：已于 2025-10-22 完成视图与表级导出（CSV）；E2E 建议串行 `--runInBand` 避免并发种子冲突。
 - 描述：`POST /tables/:id/import`、`GET /tables/:id/export`；宽松匹配与新字段创建。
 - 产出：列映射策略与示例；本地化解析规则。
 - 依赖：M1-02、M1-04、M1-05。
@@ -365,19 +373,49 @@
   - 集成：`CellsModule` 已注册至 `AppModule`，路由 `/api/tables/:tableId/cells/batch` 可用。
   - 异常过滤：扩展 `HttpExceptionFilter` 映射 `409 → REVISION_CONFLICT`，统一错误响应结构。
 
+- 新增 [M1-04] 表与字段 CRUD 完成（状态：completed）
+  - 表：`create/update/remove` 写入审计日志（`create_table/update_table/delete_table`）；`update` 调用后 `tables.revision++`。
+  - 字段：同表内名称唯一校验；`optionsJson` 类型规则（`number:min/max/precision`，`select/multi_select: options string[]`，`formula: precision`）；`create/update/remove` 后对所属表 `revision++` 并写入审计为 `update_table`。
+  - 构建：后端 `pnpm run build` 通过。
+
 - Git 与 CI（状态：in_progress）
   - 仓库：已创建根级 `.gitignore` 并完成一次主分支推送；新增 GitHub Actions 工作流（Server Build&Test / Web Build），本地已提交，受网络影响暂未推送成功。
   - 版本：本地已创建标签 `v0.0.1`，待网络恢复后执行 `git push origin v0.0.1`。
   - 分支保护：计划在 GitHub 设置 `Require PR` 与 `Require status checks`（选择 `Server Build & Test`、`Web Build`）。
 
 - 状态校准
-  - [M1-05] 记录与单元格写入：服务端批量写入与并发控制已完成（见 [M1-05C]），整体任务仍保留为 `pending` 以等待前端接入与测试闭环。
+  - [M1-03] 认证与角色：登录失败统一返回 `401 → AUTH_FAILED`，登录成功写入审计（`login`）；用户管理与种子尚待补齐，状态保持 `in_progress`。
+  - [M1-05] 记录与单元格写入：服务端批量写入与并发控制已完成（见 [M1-05C]），整体任务保留为 `pending`，等待前端接入与测试闭环。
   - [M1-10] 版本控制与并发：异常映射与服务端冲突返回已完成（`409 REVISION_CONFLICT`），整体任务保留为 `pending`，后续覆盖视图版本与前端冲突提示。
 
-- 下步计划（补充）
+- 更新 [M1-05] 记录接口接入 ACL（状态：completed）
+  - 列表/读取允许 `viewer/editor/exporter/admin`；写入仅允许 `editor/exporter/admin`；与批量写入接口角色一致。
+  - 构建：后端 `npm run build` 通过。
+  - 异常过滤：扩展 `HttpExceptionFilter` 映射 `409 → REVISION_CONFLICT`，统一错误响应结构。
+
+- 新增 [M1-04] 表与字段 CRUD 完成（状态：completed）
+  - 表：`create/update/remove` 写入审计日志（`create_table/update_table/delete_table`）；`update` 调用后 `tables.revision++`。
+  - 字段：同表内名称唯一校验；`optionsJson` 类型规则（`number:min/max/precision`，`select/multi_select: options string[]`，`formula: precision`）；`create/update/remove` 后对所属表 `revision++` 并写入审计为 `update_table`。
+  - 构建：后端 `pnpm run build` 通过。
+
+- Git 与 CI（状态：in_progress）
+  - 仓库：已创建根级 `.gitignore` 并完成一次主分支推送；新增 GitHub Actions 工作流（Server Build&Test / Web Build），本地已提交，受网络影响暂未推送成功。
+  - 版本：本地已创建标签 `v0.0.1`，待网络恢复后执行 `git push origin v0.0.1`。
+  - 分支保护：计划在 GitHub 设置 `Require PR` 与 `Require status checks`（选择 `Server Build & Test`、`Web Build`）。
+
+- 状态校准
+  - [M1-03] 认证与角色：登录失败统一返回 `401 → AUTH_FAILED`，登录成功写入审计（`login`）；用户管理与种子尚待补齐，状态保持 `in_progress`。
+  - [M1-05] 记录与单元格写入：服务端批量写入与并发控制已完成（见 [M1-05C]），整体任务保留为 `pending`，等待前端接入与测试闭环。
+  - [M1-10] 版本控制与并发：异常映射与服务端冲突返回已完成（`409 REVISION_CONFLICT`），整体任务保留为 `pending`，后续覆盖视图版本与前端冲突提示。
+
+- 下步计划（补充，更新）
+  - 视图模块（M1-06）：补充角色读取（`viewer/editor/exporter/admin`）的受控接口、完善`configJson`规范文档与示例；分组/聚合留至里程碑3实现。
+  - 记录模块（M1-05）：补充集成/E2E 测试，完善与视图配置的协同读取路径。
   - 推送 `ci.yml` 与 `v0.0.1` 标签至 GitHub，启用主分支保护与必要检查。
-  - 完成 M1-03 用户/角色管理（密码哈希与种子、接口接入 RolesGuard），补齐审计日志写入点。
-  - 完成 M1-04 表与字段 CRUD（只读与 `options_json` 解析）。
-  - 为 M1-05 编写集成/E2E 测试覆盖批量保存与冲突场景。
-  - 前端推进 M2-05：批量保存与 `409` 冲突提示与刷新流程（含网格脏标记与 revision 绑定）。
+## 进度更新（2025-10-22，E2E 测试同步）
+- 新增 Records 模块 E2E 测试覆盖 ACL/创建/列表/更新/公式/过滤排序，全部通过。
+- 测试环境修复：在 `test/records.e2e-spec.ts` 顶部设置 `JWT_SECRET` 与 `DATABASE_URL`，避免 JwtModule 初始化与策略密钥不一致导致 401；`POST /api/auth/login` 返回 201（Nest 默认），测试期望已调整。
+- 测试数据库：使用 `file:F:\trae\sheets\server\prisma\test-e2e.db`，已通过 `npx prisma db push --skip-generate` 同步。
+- 后续计划：扩展 E2E 覆盖到 Auth（admin-check）、Cells 批量写入与公式重算、Views 过滤与排序。
+
 —— 完 ——

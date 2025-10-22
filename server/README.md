@@ -21,6 +21,10 @@
   <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
   [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
+# Server
+
+This is a [NestJS](https://github.com/nestjs/nest) server starter repository.
+
 ## Description
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
@@ -44,7 +48,7 @@ $ pnpm run start:dev
 $ pnpm run start:prod
 ```
 
-## Run tests
+## Test
 
 ```bash
 # unit tests
@@ -52,6 +56,17 @@ $ pnpm run test
 
 # e2e tests
 $ pnpm run test:e2e
+```
+
+---
+
+## 项目文档链接（Project Docs Links）
+- 设计方案（中文）：`f:\trae\sheets\轻量级多维表格设计方案.md`
+- 进度 ToDoList（中文）：`f:\trae\sheets\轻量级多维表格开发方案进度todolist.md`
+
+建议：
+- 若在本机运行 E2E 测试，使用 `pnpm run test:e2e -- --runInBand` 以串行运行，避免 Prisma 并发种子导致的唯一约束冲突。
+- 测试前设置环境变量：`JWT_SECRET` 与 `DATABASE_URL`（例如 `file:F:\trae\sheets\server\prisma\test-e2e.db`）。
 
 # test coverage
 $ pnpm run test:cov

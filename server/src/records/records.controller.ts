@@ -1,13 +1,19 @@
-import { Controller, Get, Post, Body, Param, Delete, Put, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Put, Query, UseGuards } from '@nestjs/common'
 import { RecordsService } from './records.service';
 import { CreateRecordDto } from './dto/create-record.dto';
 import { UpdateRecordDto } from './dto/update-record.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { RolesGuard } from '../auth/roles.guard'
+import { Roles } from '../auth/roles.decorator'
+import { Role } from '@prisma/client'
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/tables/:tableId/records')
 export class RecordsController {
   constructor(private readonly recordsService: RecordsService) {}
 
   @Get()
+  @Roles(Role.viewer, Role.editor, Role.exporter, Role.admin)
   async list(
     @Param('tableId') tableId: string,
     @Query('page') page?: string,
@@ -41,21 +47,25 @@ export class RecordsController {
   }
 
   @Get(':id')
+  @Roles(Role.viewer, Role.editor, Role.exporter, Role.admin)
   async get(@Param('tableId') tableId: string, @Param('id') id: string) {
     return this.recordsService.get(Number(tableId), Number(id));
   }
 
   @Post()
+  @Roles(Role.editor, Role.exporter, Role.admin)
   async create(@Param('tableId') tableId: string, @Body() dto: CreateRecordDto) {
     return this.recordsService.create(Number(tableId), dto);
   }
 
   @Put(':id')
+  @Roles(Role.editor, Role.exporter, Role.admin)
   async update(@Param('tableId') tableId: string, @Param('id') id: string, @Body() dto: UpdateRecordDto) {
     return this.recordsService.update(Number(tableId), Number(id), dto);
   }
 
   @Delete(':id')
+  @Roles(Role.editor, Role.exporter, Role.admin)
   async remove(@Param('tableId') tableId: string, @Param('id') id: string) {
     return this.recordsService.remove(Number(tableId), Number(id));
   }

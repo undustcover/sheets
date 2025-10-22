@@ -20,11 +20,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       ? (roleEnv as Role)
       : 'admin';
 
-    const existing = await this.user.findUnique({ where: { username } });
-    if (existing) return;
-
     const hash = await argon2.hash(password);
-    await this.user.create({ data: { username, password: hash, role } });
+    // 使用 upsert 避免并发导致的唯一约束冲突
+    await this.user.upsert({
+      where: { username },
+      update: { password: hash, role },
+      create: { username, password: hash, role },
+    });
     // 可扩展：写入审计日志 Log(action=login) 等
   }
 }

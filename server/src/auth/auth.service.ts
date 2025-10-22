@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as argon2 from 'argon2';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, UnauthorizedException } from '@nestjs/common'
+import { JwtService } from '@nestjs/jwt'
+import * as argon2 from 'argon2'
+import { PrismaService } from '../prisma/prisma.service'
+import { LogAction } from '@prisma/client'
 
 export type UserPayload = { id: number; username: string; role: 'viewer'|'editor'|'exporter'|'admin' };
 
@@ -20,9 +21,10 @@ export class AuthService {
   async login(username: string, password: string) {
     const user = await this.validateUser(username, password);
     if (!user) {
-      return { code: 'AUTH_FAILED', message: '用户名或密码错误' };
+      throw new UnauthorizedException('用户名或密码错误');
     }
     const token = await this.jwtService.signAsync({ sub: user.id, username: user.username, role: user.role });
+    await this.prisma.log.create({ data: { action: LogAction.login, userId: user.id } });
     return { token, user };
   }
 }
