@@ -15,7 +15,15 @@ export class CellsService {
     const table = await this.prisma.table.findUnique({ where: { id: tableId } });
     if (!table) throw new BadRequestException('Table not found');
     if (dto.revision !== table.revision) {
-      throw new ConflictException({ message: 'Revision conflict', details: { latestRevision: table.revision } });
+      // 检测具体冲突的单元格
+      const conflictDetails = await this.detectConflicts(tableId, dto.writes);
+      throw new ConflictException({ 
+        message: 'Revision conflict', 
+        details: { 
+          latestRevision: table.revision,
+          conflicts: conflictDetails
+        } 
+      });
     }
 
     const recordIds = Array.from(new Set(dto.writes.map((w) => w.recordId))).filter((x) => Number.isFinite(x));
@@ -68,6 +76,87 @@ export class CellsService {
     });
 
     return { success: true, revision: result.revision, written: dto.writes.length };
+  }
+
+  private async detectConflicts(tableId: number, writes: Array<{ recordId: number; fieldId: number; value?: any; formulaExpr?: string }>) {
+    const conflicts: Array<{
+      recordId: number;
+      fieldId: number;
+      currentValue: any;
+      attemptedValue: any;
+      currentFormulaExpr?: string;
+      attemptedFormulaExpr?: string;
+    }> = [];
+
+    // 获取所有相关的当前单元格值
+    const cellKeys = writes.map(w => ({ recordId: w.recordId, fieldId: w.fieldId }));
+    const currentCells = await this.prisma.cellValue.findMany({
+      where: {
+        OR: cellKeys.map(key => ({ recordId: key.recordId, fieldId: key.fieldId }))
+      }
+    });
+
+    // 获取字段信息用于值验证
+    const fieldIds = Array.from(new Set(writes.map(w => w.fieldId)));
+    const fields = await this.prisma.field.findMany({ where: { id: { in: fieldIds }, tableId } });
+    const fieldMap = new Map(fields.map(f => [f.id, f]));
+
+    const currentCellMap = new Map(
+      currentCells.map(cell => [`${cell.recordId}-${cell.fieldId}`, cell])
+    );
+
+    for (const write of writes) {
+      const cellKey = `${write.recordId}-${write.fieldId}`;
+      const currentCell = currentCellMap.get(cellKey);
+      const field = fieldMap.get(write.fieldId);
+      
+      if (!field) continue; // 字段不存在，会在主流程中处理
+
+      // 验证并标准化尝试写入的值
+      let attemptedValue: any;
+      let attemptedFormulaExpr: string | undefined;
+      
+      try {
+        const { valueJson, formulaExpr } = this.validateAndCoerceValue(field, write.value, write.formulaExpr);
+        attemptedValue = valueJson;
+        attemptedFormulaExpr = formulaExpr;
+      } catch {
+        // 如果值验证失败，仍然记录冲突以便前端显示
+        attemptedValue = write.value;
+        attemptedFormulaExpr = write.formulaExpr;
+      }
+
+      // 检查是否存在冲突
+      const currentValue = currentCell?.valueJson;
+      const currentFormulaExpr = (currentCell?.formulaExpr ?? undefined);
+
+      // 比较值和公式表达式
+      const valueChanged = !this.deepEqual(currentValue, attemptedValue);
+      const formulaChanged = currentFormulaExpr !== attemptedFormulaExpr;
+
+      if (valueChanged || formulaChanged) {
+        conflicts.push({
+          recordId: write.recordId,
+          fieldId: write.fieldId,
+          currentValue,
+          attemptedValue,
+          currentFormulaExpr,
+          attemptedFormulaExpr
+        });
+      }
+    }
+
+    return conflicts;
+  }
+
+  private deepEqual(a: any, b: any): boolean {
+    if (a === b) return true;
+    if (a == null || b == null) return a === b;
+    if (typeof a !== typeof b) return false;
+    if (typeof a === 'object') {
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+    return false;
   }
 
   private validateAndCoerceValue(field: Prisma.FieldGetPayload<{ include?: {} }>, raw: any, formulaExpr?: string) {

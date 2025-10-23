@@ -76,6 +76,6 @@ export class ViewsService {
       sort: mergedSort,
     });
 
-    return { view: { id: view.id, name: view.name, type: view.type, revision: view.revision }, ...result };
+    return { view: { id: view.id, tableId: view.tableId, name: view.name, type: view.type, revision: view.revision, configJson: (view.configJson ?? {}) as any }, ...result };
   }
 }

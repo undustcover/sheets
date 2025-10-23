@@ -17,7 +17,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { AttachmentsService } from './attachments.service';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { createReadStream, readFileSync } from 'fs';
 
 @Controller('api/attachments')
