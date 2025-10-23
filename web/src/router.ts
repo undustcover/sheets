@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import LoginView from './views/LoginView.vue'
 import TablesView from './views/TablesView.vue'
 import TableDetailView from './views/TableDetailView.vue'
+import GridView from './views/GridView.vue'
 import { getToken } from './services/api'
 
 const routes: RouteRecordRaw[] = [
@@ -10,6 +11,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/login', component: LoginView },
   { path: '/tables', component: TablesView },
   { path: '/tables/:id', component: TableDetailView, props: true },
+  // Anonymous grid view route
+  { path: '/grid/:viewId', component: GridView, props: true },
 ]
 
 const router = createRouter({
@@ -19,7 +22,8 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const token = getToken()
-  if (!token && to.path !== '/login') {
+  // allow login and anonymous grid view
+  if (!token && to.path !== '/login' && !to.path.startsWith('/grid/')) {
     return '/login'
   }
   return true

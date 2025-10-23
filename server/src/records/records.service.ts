@@ -71,12 +71,12 @@ export class RecordsService {
       filtered = filtered.slice().sort((a, b) => {
         const av = (valuesByRecord[a.id] ?? {})[String(sort.fieldId)];
         const bv = (valuesByRecord[b.id] ?? {})[String(sort.fieldId)];
-        if (av == null && bv == null) return 0;
+        if (av == null && bv == null) return a.id - b.id; // 稳定：按ID兜底
         if (av == null) return -1 * dir;
         if (bv == null) return 1 * dir;
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
-        return 0;
+        return a.id - b.id; // 值相等时按ID稳定排序
       });
     }
 

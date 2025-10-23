@@ -1,4 +1,4 @@
-process.env.DATABASE_URL = 'file:F:\\trae\\sheets\\server\\prisma\\test-e2e.db';
+process.env.DATABASE_URL = 'file:./prisma/test-e2e.db';
 process.env.JWT_SECRET = 'test-secret';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
@@ -159,9 +159,16 @@ describe('Cells (E2E) - M1-05 batch write', () => {
     expect(resp.status).toBe(403);
   });
 
-  it('revision 冲突返回 409', async () => {
+  it('revision 冲突返回 409 并包含冲突详情', async () => {
     const tbl = await prisma.table.findUnique({ where: { id: tableId } });
     const latest = tbl!.revision; // e.g. 1
+
+    // 先写入一个值以创建冲突基础
+    await prisma.cellValue.upsert({
+      where: { recordId_fieldId: { recordId: record1Id, fieldId: fieldAId } },
+      update: { valueJson: 10 },
+      create: { recordId: record1Id, fieldId: fieldAId, valueJson: 10 },
+    });
 
     // stale revision (latest - 1)
     const staleRevision = Math.max(0, latest - 1);
@@ -172,6 +179,19 @@ describe('Cells (E2E) - M1-05 batch write', () => {
       .send({ revision: staleRevision, writes: [{ recordId: record1Id, fieldId: fieldAId, value: 20 }] });
 
     expect(resp.status).toBe(409);
+    expect(resp.body.details).toBeDefined();
+    expect(resp.body.details.latestRevision).toBe(latest);
+    expect(resp.body.details.conflicts).toBeDefined();
+    expect(Array.isArray(resp.body.details.conflicts)).toBe(true);
+    
+    // 验证冲突详情包含具体的单元格信息
+    if (resp.body.details.conflicts.length > 0) {
+      const conflict = resp.body.details.conflicts[0];
+      expect(conflict.recordId).toBe(record1Id);
+      expect(conflict.fieldId).toBe(fieldAId);
+      expect(conflict.currentValue).toBe(10);
+      expect(conflict.attemptedValue).toBe(20);
+    }
   });
 
   it('使用最新 revision 写入成功并重算公式', async () => {

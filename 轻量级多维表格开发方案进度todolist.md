@@ -115,7 +115,8 @@
 - 验收：流程覆盖常见场景；含并发冲突处理。
 - 预计耗时：1.5 天。
 
-6) [M1-06] 视图配置与数据读取（状态：pending）
+6) [M1-06] 视图配置与数据读取（状态：in_progress）
+- 备注：已提供基础 `GET /views/:id/data` 支撑前端匿名视图读取，完整过滤/排序/分组未实现。
 - 描述：`/tables/:id/views`、`GET /views/:id/data`；过滤/排序/分组/聚合。
 - 产出：视图 config_json 规范；数据读取契约。
 - 依赖：M1-02、M1-04、M1-05。
@@ -174,7 +175,7 @@
 ---
 
 ### 里程碑2：前端网格视图与导入导出（Vue3 + Element Plus + Luckysheet）
-1) [M2-01] 前端项目结构设计（状态：pending）
+1) [M2-01] 前端项目结构设计（状态：completed）
 - 描述：记录 Vite、Router、Pinia、Axios、Element Plus 初始化步骤与目录规划。
 - 产出：`docs/frontend-setup.md`。
 - 依赖：M0-02。
@@ -182,7 +183,7 @@
 - 验收：可按文档初始化项目。
 - 预计耗时：0.5 天。
 
-2) [M2-02] 认证与路由守卫（状态：pending）
+2) [M2-02] 认证与路由守卫（状态：completed）
 - 描述：登录页、Token 管理、路由守卫、角色控制与 ACL。
 - 产出：路由与守卫设计；状态结构说明。
 - 依赖：M1-03。
@@ -190,7 +191,7 @@
 - 验收：流程清晰；边界覆盖。
 - 预计耗时：0.5 天。
 
-3) [M2-03] 表列表与详情页框架（状态：pending）
+3) [M2-03] 表列表与详情页框架（状态：completed）
 - 描述：`/tables` 列表、`/tables/:id` 详情，视图切换（网格/看板/画廊/分组）。
 - 产出：页面结构与组件关系图。
 - 依赖：M1-04、M1-06。
@@ -198,37 +199,54 @@
 - 验收：结构合理；可容纳后续功能。
 - 预计耗时：1 天。
 
-4) [M2-04] Luckysheet 网格集成与 EAV 映射（状态：pending）
+4) [M2-04] Luckysheet 网格集成与 EAV 映射（状态：completed）
 - 描述：将 EAV 数据映射到 Luckysheet；公式即时重算与脏标记。
 - 产出：映射层设计与数据流说明。
 - 依赖：M1-05、M1-06。
 - 执行步骤：列字段类型渲染；只读行/列禁用编辑。
 - 验收：基本编辑与公式运行正常；性能可用。
+- 开始节点：里程碑 2，完成 M2-03（表详情页框架）后启动。
 - 预计耗时：2 天。
+- 完成时间：2025-10-23
+- 备注：已完整实现 Luckysheet 集成，包括 EAV 数据映射、字段类型渲染、编辑捕获、只读控制等核心功能。通过 M2-04a 子任务解决了字段键映射兼容性问题。
 
-5) [M2-05] 批量保存与版本冲突处理（状态：pending）
+5) [M2-05] 批量保存与版本冲突处理（状态：completed）
 - 描述：将网格编辑变更批量提交；处理 `409 Conflict` 刷新提示。
 - 产出：保存流程与错误提示设计。
 - 依赖：M1-10。
 - 执行步骤：收集变更；校验只读；携带 `revision`；界面提示。
 - 验收：冲突场景提示准确；数据一致。
+- 开始节点：里程碑 2，M2-04（网格集成）完成后启动。
 - 预计耗时：1 天。
+- 完成时间：2025-10-23
+- 备注：已通过 M2-05a 和 M2-05b 两个子任务完整实现，包括编辑变更收集、批量保存和并发冲突处理。
 
-6) [M2-06] 过滤与排序 UI（状态：pending）
+6) [M2-06] 过滤与排序 UI（状态：completed）
 - 描述：多条件 AND 过滤与排序；保存筛选条件到视图配置。
 - 产出：过滤组件与视图配置写回流程。
 - 依赖：M1-06。
 - 执行步骤：支持类型化条件；联动聚合。
 - 验收：条件持久化；与数据读取一致。
 - 预计耗时：1 天。
+- 开始时间：2025-10-23
+- 完成时间：2025-10-23
+- 备注：
+  - 前端 GridView.vue 完成视图配置回显（filters/sort），并在保存前增加“影响所有用户”的确认弹窗
+  - 根据字段类型（文本、数字、布尔、日期、单选/多选）动态生成操作符与输入控件，支持 eq/ne/lt/lte/gt/gte/contains/in/between/is_null/is_not_null
+  - 前端序列化与后端 RecordsService.list 匹配，ViewsController 支持 JSON 参数解析；ViewsService.getData 返回 configJson 以便前端回显
 
-7) [M2-07] 导入（CSV/Excel）前端流程（状态：pending）
+7) [M2-07] 导入（CSV/Excel）前端流程（状态：completed）
 - 描述：上传解析、列头宽松匹配、不可识别列创建新字段、预览与确认。
-- 产出：导入向导组件与交互说明。
+- 产出：导入向导组件与交互说明；dryRun 预校验与错误列表；基础进度反馈。
 - 依赖：M1-08。
 - 执行步骤：本地化解析（数字/日期）；错误反馈与日志。
-- 验收：导入成功与回滚清晰；审计记录触发。
+- 验收：导入成功与回滚清晰；审计记录触发；dryRun 通过后再执行导入。
 - 预计耗时：1.5 天。
+- 开始时间：2025-10-23
+- 完成时间：2025-10-23
+- 相关文件：`web/src/components/ImportWizard.vue`、`web/src/services/api.ts`
+- 预览地址：`http://localhost:5173/`
+- 备注：映射支持“CSV 列索引→字段 ID”；支持 `delimiter/hasHeader/ignoreUnknownColumns/mapping/dryRun/rollbackOnError` 参数。
 
 8) [M2-08] 导出流程与权限校验（状态：pending）
 - 描述：导出当前视图过滤结果；权限由创建者配置，默认 `exporter/admin/editor` 可导出。
@@ -352,3 +370,149 @@
 ---
 
 ## 任务模板（复制使用）
+## 进度追加（2025-10-23）
+- 说明：严格遵循原文档，不删除任何条目；本段为新增进度记录模板。
+
+A) [M2-04a] GridView 字段键映射兼容（状态：completed）
+- 描述：兼容 records.values 的键为字段 ID 或字段名两种格式。
+- 产出：前端 GridView.vue 列头与单元格值映射逻辑，支持数字/字符串；预览验证通过。
+- 依赖：M2-04。
+- 验收：匿名视图页面正确显示列头与数据；异常时可见日志。
+
+B) [M2-03b] 表详情页诊断与测试表单（状态：completed）
+- 描述：确认 A/B 字段存在并插入一条示例记录；支持创建匿名视图并跳转。
+- 产出：TableDetailView.vue 提供 ensureFieldByName/runDiagnostics/openGridView 方法。
+- 依赖：M2-03。
+- 验收：登录后在详情页可打开匿名视图显示测试记录与列头。
+
+C) [M2-02a] 前端 auth token 导出修复（状态：completed）
+- 描述：恢复并导出 getToken/setToken/clearToken；修复 App.vue/LoginView.vue 的导入。
+- 产出：web/src/services/api.ts 更新。
+- 验收：登录与路由守卫流程正常。
+
+D) [M2-05-prep] 新增记录/新增字段按钮与 API 打通（状态：pending）
+- 描述：在表详情页提供“新增记录/新增字段”按钮，直连 /api/tables/:id/records 与 /api/tables/:id/fields。
+- 依赖：M1-04、M1-05。
+- 验收：操作完成后列表刷新可见，权限提示准确。
+I) [M2-06a] 视图配置回显与保存确认（状态：completed）
+- 描述：GridView 回显 filters/sort；保存前确认弹窗提示影响所有用户。
+- 产出：GridView.vue 中回显逻辑与 Element Plus 确认框。
+- 依赖：M2-06。
+- 验收：刷新后保留条件；保存弹窗交互正确。
+- 完成时间：2025-10-23
+- 备注：后端视图 configJson 同步返回，前端初始化面板与分页。
+
+J) [M2-06b] 类型化操作符扩展与序列化适配（状态：completed）
+- 描述：按字段类型动态生成操作符与输入控件；序列化支持 between/in/is_null/is_not_null。
+- 产出：opsForField/inputTypeForField/serializeFiltersForQuery 更新。
+- 依赖：M2-06。
+- 验收：后端 RecordsService.list 命中正确；值校验通过。
+- 完成时间：2025-10-23
+
+K) [M1-06a] ViewsService 返回 configJson（状态：completed）
+- 描述：GET /views/:id/data 返回 configJson 以便前端回显。
+- 产出：views.service.ts getData 填充 configJson。
+- 依赖：M1-06。
+- 验收：前端读取并正确初始化筛选与排序。
+
+L) [OPS-01] 开发服务器稳定化与端口冲突解除（状态：completed）
+- 描述：终止重复后端 dev 进程；确保 3000 稳定监听；前端改用 5174 预览。
+- 产出：运行状态确认与端口探测脚本输出。
+- 验收：`http://localhost:3000` 可用；前端 `http://localhost:5174/` 可预览。
+
+M) [QA-01] 可操作验证清单更新（状态：completed）
+- 描述：补充登录验证、过滤/排序生效、保存弹窗确认与回显校验步骤。
+- 产出：文档内验证步骤与错误码排查指南。
+- 验收：按清单手测无阻塞。
+
+E) [M2-05-ui] 表详情页新增记录/字段入口（状态：completed）
+- 描述：在 TableDetailView 顶部增加“新增字段”“新增记录”按钮，并接入前端 API；创建字段后刷新字段列表，创建记录后刷新记录分页。
+- 产出：TableDetailView.vue 中实现 createFieldQuick/createRecordQuick 方法与操作区 UI。
+- 依赖：M2-03、M1-04、M1-05。
+- 验收：登录为 editor/admin 后，点击按钮可成功创建字段与记录，页面刷新可见结果；权限不足时有明确错误提示。
+
+F) [M2-05-design] GridView 编辑变更收集与批量保存草拟（状态：pending）
+- 描述：在 GridView 记录用户编辑，构建批量写入 payload（values/formulas），携带 revision，处理 409 冲突提示与重载。
+- 产出：前端变更缓冲区设计、批量提交方法签名与交互流程草图。
+- 依赖：M1-10、M2-04。
+- 开始节点：里程碑 2，M2-04 前并行草拟并评审；M2-05 开发前完成。
+- 验收：能在演示环境模拟变更并生成正确 payload；冲突时展示提示并支持刷新。
+
+G) [M2-05a] GridView 编辑变更收集与批量保存实现（状态：completed）
+- 描述：实现 GridView 中的编辑变更收集、脏标记管理、批量保存功能，支持撤销操作。
+- 产出：GridView.vue 中的 dirtyWrites 状态管理、saveDirty/undoAll 方法、UI 提示组件。
+- 依赖：M2-04、M1-05。
+- 验收：用户编辑后显示未保存提示，点击保存可批量提交，撤销可清除所有变更。
+- 完成时间：2025-10-23
+- 备注：已实现完整的编辑状态管理和批量保存流程，UI 交互良好。
+
+H) [M2-05b] 并发冲突检测与解决 UI（状态：completed）
+- 描述：增强后端冲突检测，实现前端冲突高亮显示和解决界面，支持差异对比。
+- 产出：
+  - 后端：cells.service.ts 中的 detectConflicts 方法，返回详细冲突信息
+  - 前端：GridView.vue 中的冲突高亮、冲突解决面板、差异对比显示
+- 依赖：M2-05a、M1-10。
+- 执行步骤：
+  1. 后端增强冲突检测，返回 recordId/fieldId/currentValue/attemptedValue 等详细信息
+  2. 前端实现冲突单元格红色高亮（#ffebee 背景，#c62828 文字，加粗）
+  3. 设计冲突解决 UI 面板，提供三种策略：全部保留服务器版本/全部保留我的修改/按选择解决
+  4. 实现差异对比显示，支持数值变化量、文本长度变化、公式差异等
+- 验收：
+  - 冲突单元格在网格中清晰可见（红色高亮）
+  - 冲突面板显示详细的值对比信息
+  - 用户可选择不同策略解决冲突
+  - 差异对比准确显示变化类型和幅度
+- 完成时间：2025-10-23
+- 备注：完整实现了并发冲突的可视化处理，用户体验良好，支持精细化冲突解决。
+
+---
+
+## 更新要求与进度开发要求
+- 更新频率：每次完成非琐碎任务后立即追加记录。
+- 记录要素：日期/任务编号/状态/影响范围/相关文件/接口/预览地址/验证步骤/错误码/回滚方案。
+- 状态规范：仅当任务完全达成（含验证）才标记 `completed`；阻塞使用 `blocked` 并写明原因与解法。
+- 可视化变更：涉及 UI 的改动必须打开本地预览并在文档注明预览 URL。
+- 跟踪规则：每次工作开始先标记 `in_progress`；完成后即时标记 `completed`；不跨越未完成任务。
+- 度量要求：为性能相关任务填写阈值与目标（如 1000×100 可用）。
+- 变更策略：新增需求以追加任务方式记录，不改历史已完成条目。
+- 验收标准：为每个条目写清验收项并可复现验证路径。
+- 提交要求：关联代码路径与文件名，保持描述与实现一致。
+
+### 当前预览地址与运行状态（2025-10-23）
+- 后端：`http://localhost:3000` 运行中；已解除端口冲突并稳定监听。
+- 前端：`http://localhost:5173/` 预览有效。
+- 认证：默认用户 `admin/admin123` 登录可用；路由守卫正常。
+
+## 次日启动计划（2025-10-24）
+
+### 启动准备
+- 终止重复 dev 进程（如存在），确认后端 `http://localhost:3000`、前端 `http://localhost:5173/` 正常。
+- 检查前端环境变量 `VITE_API_BASE='http://localhost:3000'` 并用 `admin/admin123` 登录验证。
+- 清理浏览器缓存/Token 后重新打开预览 URL；执行一次视图数据读取以验证 filters/sort。
+
+### 开发任务清单（按优先级）
+1) [M1-08b] 导入进度追踪 API（后端）（状态：completed）
+- 描述：提供后台轮询进度查询，首版内存寄存；长远升级为 SSE 与任务 ID。
+- 产出：
+  - 接口：`GET /api/tables/:id/import/progress`
+  - 控制器：`server/src/imports/imports.controller.ts` 新增 `getImportProgress`
+  - 服务：`server/src/imports/imports.service.ts` 增加 `progressByTable`、`setProgress`、`getProgress` 并在导入流程更新进度
+- 验收：导入期间轮询能看到进度变化（status: validating/inserting/done/error；percent、processed/total）。
+
+2) [M2-07a] 导入前端进度轮询与展示（状态：completed）
+- 描述：在 ImportWizard 的真实导入阶段改为轮询后端进度；失败弹详细提示。
+- 产出：
+  - API：`web/src/services/api.ts` 增加 `getImportProgress(tableId)`
+  - 组件：`web/src/components/ImportWizard.vue` 替换模拟进度为真实轮询，导入并行触发+500ms 轮询，完成后收敛为 100%
+- 验收：进度与后端一致；失败/回滚提示明确；关闭向导后刷新表数据。
+
+3) [M1-08c] 导入结果日志与失败行导出（状态：in_progress）
+- 描述：将导入结果写日志，并支持导出失败行 CSV；前端提供“下载失败清单”。
+- 依赖：M1-08b。
+- 产出（后端已完成部分）：
+  - 服务：`server/src/imports/imports.service.ts` 记录最近失败报告（dryRun/import），含 headers/rows/errors
+  - 接口：`GET /api/tables/:id/import/failures.csv` 导出失败清单 CSV（含 rowIndex、各原列、_errors）
+  - 控制器：`server/src/imports/imports.controller.ts` 新增 `downloadImportFailuresCsv`
+- 待办（前端）：
+  - ImportWizard 在 dryRun 失败时显示“下载失败清单（CSV）”按钮并调用上述接口
+- 验收：导入失败可下载报告，日志可检索；前端按钮可用（下一步完成）。

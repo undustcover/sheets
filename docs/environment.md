@@ -31,7 +31,26 @@
 - 移动端：常见手机浏览器（网格编辑适度降级，保留浏览/检索）。
 
 ## 开发与运行（示例流程）
-- 后端（本地）：
+# 运行环境与准备
+
+- Node.js：建议 v20+
+- 包管理：pnpm / npm / yarn（推荐 pnpm）
+- 平台：Linux / macOS / Windows（开发）
+- 时区：默认 `Asia/Shanghai`
+
+## 目录结构（关键）
+- 后端：`server/`（NestJS + Prisma）
+- 前端：`web/`（Vite + Vue）
+- 数据与上传：`server/data/`、`uploads/`（默认忽略在 Git）
+
+## 环境变量（示例）
+- `JWT_SECRET=change_me`
+- `DATABASE_URL=file:./data/app.db`（SQLite）
+- `UPLOAD_DIR=./uploads`
+- `TZ=Asia/Shanghai`
+
+## 本地开发（建议流程）
+- 后端：
   - 安装依赖与生成 Prisma 客户端：`npm install`、`npx prisma generate`
   - 开发运行：`npm run start:dev`（NestJS）
   - 环境变量：`JWT_SECRET`、`DATABASE_URL`（示例：`file:./data/app.db`）、`UPLOAD_DIR`、`TZ=Asia/Shanghai`
@@ -48,5 +67,33 @@
 - Node/Docker 版本满足要求，`TZ` 环境生效。
 - `data/` 与 `uploads/` 可读写；WAL 模式已启用（日志文件存在）。
 - 浏览器打开前端可访问；可连接到后端基础路由（如 `/health`）。
+
+## 数据库初始化
+
+> 当前使用 SQLite + Prisma；仓库未提交 `prisma/migrations`（见 `.gitignore`）。开发/测试场景建议使用 `db push` 同步 Schema。
+
+- 开发环境（本机）：
+  1) 进入后端目录：`cd server`
+  2) 配置环境变量（`.env` 或系统变量）：
+     - `JWT_SECRET=change_me`
+     - `DATABASE_URL=file:./data/app.db`
+     - `UPLOAD_DIR=./uploads`
+  3) 初始化/同步数据库 Schema：
+     - 生成客户端：`pnpm prisma:generate`
+     - 同步 Schema：`pnpm db:push`
+  4) 启动后端：`pnpm start:dev`
+
+- Docker/Compose：
+  1) 构建镜像：`docker compose build`
+  2) 一次性执行 Schema 同步（确保卷已挂载）：
+     - `docker compose run --rm server npx prisma db push`
+  3) 启动服务：`docker compose up -d`
+
+- 可选：管理员种子账号（启动时自动 upsert）
+  - 设置环境变量（Compose 已示例）：
+    - `ADMIN_USERNAME=admin`
+    - `ADMIN_PASSWORD=admin123`
+    - `ADMIN_ROLE=admin`（可选：viewer/editor/exporter/admin）
+  - 后端启动后会在数据库中自动 upsert 该账号（见 `PrismaService.ensureAdminSeed`）。
 
 —— 完 ——
