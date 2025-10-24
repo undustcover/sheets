@@ -15,7 +15,7 @@ async function submit() {
   try {
     const resp = await api.login(username.value, password.value)
     setToken(resp.token)
-    router.push('/tables')
+    router.push('/manage')
   } catch (e: any) {
     error.value = e?.message || '登录失败'
   } finally {

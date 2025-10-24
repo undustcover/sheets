@@ -51,7 +51,7 @@ export const api = {
     request(`/api/tables/${tableId}/records`, { method: 'POST', body: JSON.stringify(payload) }),
   updateRecord: (tableId: number, id: number, payload: any) => request(`/api/tables/${tableId}/records/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteRecord: (tableId: number, id: number) => request(`/api/tables/${tableId}/records/${id}`, { method: 'DELETE' }),
-  importCsv: async (tableId: number, file: File) => {
+  importCsv: async (tableId: number, file: File, opts?: { delimiter?: string; hasHeader?: boolean; ignoreUnknownColumns?: boolean; mapping?: Record<string, number>; dryRun?: boolean; rollbackOnError?: boolean }) => {
     const token = getToken()
     const fd = new FormData()
     fd.append('file', file)
@@ -142,6 +142,7 @@ export const api = {
     err.details = body?.details
     throw err
   },
-  // 新增：创建表
-  createTable: (payload: { name: string; anonymousEnabled?: boolean }) => request(`/api/tables`, { method: 'POST', body: JSON.stringify(payload) }),
+  // 新增：创建/删除表
+  createTable: (payload: { name: string; metaJson?: any; anonymousEnabled?: boolean }) => request(`/api/tables`, { method: 'POST', body: JSON.stringify(payload) }),
+  deleteTable: (id: number) => request(`/api/tables/${id}`, { method: 'DELETE' }),
 }
