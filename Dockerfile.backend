@@ -1,0 +1,40 @@
+# Backend (NestJS) production image
+# Builder stage
+FROM node:20-slim AS builder
+WORKDIR /app
+
+# Install dependencies for server
+COPY server/package*.json ./server/
+RUN cd server && npm ci
+
+# Copy source and build
+COPY server ./server
+WORKDIR /app/server
+# Generate Prisma Client (required at runtime)
+RUN npx prisma generate
+# Build TS to dist and prune dev deps
+RUN npm run build && npm prune --omit=dev
+
+# Runtime stage
+FROM node:20-slim
+ENV NODE_ENV=production \
+    TZ=Asia/Shanghai
+WORKDIR /app/server
+
+# Ports and volumes
+EXPOSE 8080
+VOLUME ["/app/server/data", "/app/server/uploads"]
+
+# Copy built artifacts and runtime deps
+COPY --from=builder /app/server/dist ./dist
+COPY --from=builder /app/server/node_modules ./node_modules
+# Optional: include prisma schema for reference (client is already in node_modules)
+COPY --from=builder /app/server/prisma ./prisma
+
+# Default env (can be overridden by compose)
+ENV PORT=8080 \
+    DATABASE_URL="file:./data/app.db" \
+    UPLOAD_DIR="./uploads" \
+    CORS_ORIGIN="http://localhost:5173"
+
+CMD ["node", "dist/main.js"]

@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  server:
+    container_name: sheets-server
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Shanghai
+      PORT: 8080
+      # Adjust CORS origin to the frontend origin
+      CORS_ORIGIN: http://localhost
+      # Secrets (set via .env or CI/CD)
+      JWT_SECRET: "change_me_in_prod"
+      # Admin bootstrap (optional)
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+      ADMIN_ROLE: admin
+      # SQLite path and uploads dir (relative to /app/server)
+      DATABASE_URL: file:./data/app.db
+      UPLOAD_DIR: ./uploads
+    volumes:
+      - ./data:/app/server/data
+      - ./uploads:/app/server/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:8080/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    container_name: sheets-web
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      # no env required; nginx proxies to http://server:8080
+      TZ: Asia/Shanghai

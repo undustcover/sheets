@@ -23,13 +23,10 @@ async function request(path: string, init?: RequestInit) {
 
 export const api = {
   login: async (username: string, password: string) => {
-    const resp = await fetch(`${API_BASE}/api/auth/login`, {
+    return request('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     })
-    if (!resp.ok) throw new Error(`Login failed: ${resp.status}`)
-    return resp.json()
   },
   listTables: () => request('/api/tables'),
   getTable: (id: number) => request(`/api/tables/${id}`),
@@ -47,6 +44,13 @@ export const api = {
     const token = getToken()
     const fd = new FormData()
     fd.append('file', file)
+    fd.append('format', 'csv')
+    if (opts?.delimiter) fd.append('delimiter', opts.delimiter)
+    if (opts?.hasHeader !== undefined) fd.append('hasHeader', String(!!opts.hasHeader))
+    if (opts?.ignoreUnknownColumns !== undefined) fd.append('ignoreUnknownColumns', String(!!opts.ignoreUnknownColumns))
+    if (opts?.mapping) fd.append('mapping', JSON.stringify(opts.mapping))
+    if (opts?.dryRun !== undefined) fd.append('dryRun', String(!!opts.dryRun))
+    if (opts?.rollbackOnError !== undefined) fd.append('rollbackOnError', String(!!opts.rollbackOnError))
     const resp = await fetch(`${API_BASE}/api/tables/${tableId}/import`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,

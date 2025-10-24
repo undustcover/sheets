@@ -24,3 +24,9 @@
 
 ## 里程碑
 - 详见 ToDoList：里程碑 0~4 的计划、状态与验收标准
+
+## 进度记录（按节点）
+- 使用说明：`docs/progress/README.md`
+- 节点总览：`docs/progress/nodes/INDEX.md`
+- 节点目录：`docs/progress/nodes/`
+- v2 文档入口：`f:\trae\sheets\轻量级多维表格开发方案进度todolist-v2.md`

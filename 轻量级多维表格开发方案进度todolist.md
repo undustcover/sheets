@@ -235,13 +235,18 @@
   - 根据字段类型（文本、数字、布尔、日期、单选/多选）动态生成操作符与输入控件，支持 eq/ne/lt/lte/gt/gte/contains/in/between/is_null/is_not_null
   - 前端序列化与后端 RecordsService.list 匹配，ViewsController 支持 JSON 参数解析；ViewsService.getData 返回 configJson 以便前端回显
 
-7) [M2-07] 导入（CSV/Excel）前端流程（状态：pending）
+7) [M2-07] 导入（CSV/Excel）前端流程（状态：completed）
 - 描述：上传解析、列头宽松匹配、不可识别列创建新字段、预览与确认。
-- 产出：导入向导组件与交互说明。
+- 产出：导入向导组件与交互说明；dryRun 预校验与错误列表；基础进度反馈。
 - 依赖：M1-08。
 - 执行步骤：本地化解析（数字/日期）；错误反馈与日志。
-- 验收：导入成功与回滚清晰；审计记录触发。
+- 验收：导入成功与回滚清晰；审计记录触发；dryRun 通过后再执行导入。
 - 预计耗时：1.5 天。
+- 开始时间：2025-10-23
+- 完成时间：2025-10-23
+- 相关文件：`web/src/components/ImportWizard.vue`、`web/src/services/api.ts`
+- 预览地址：`http://localhost:5173/`
+- 备注：映射支持“CSV 列索引→字段 ID”；支持 `delimiter/hasHeader/ignoreUnknownColumns/mapping/dryRun/rollbackOnError` 参数。
 
 8) [M2-08] 导出流程与权限校验（状态：pending）
 - 描述：导出当前视图过滤结果；权限由创建者配置，默认 `exporter/admin/editor` 可导出。

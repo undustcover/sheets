@@ -60,6 +60,33 @@ $ pnpm run test:e2e
 
 ---
 
+## 数据库初始化（SQLite + Prisma）
+
+> 提示：本仓库未提交 `server/prisma/migrations/`（见 `.gitignore`）。在开发/测试环境，请使用 `db push` 同步 Schema；生产环境建议使用 `migrate deploy`（需提交迁移）。
+
+- 本地（开发）：
+  1) `cd server`
+  2) 配置环境变量（`.env` 或系统变量）：
+     - `JWT_SECRET=change_me`
+     - `DATABASE_URL=file:./data/app.db`
+     - `UPLOAD_DIR=./uploads`
+  3) 初始化：
+     - 生成客户端：`pnpm prisma:generate`
+     - 同步 Schema：`pnpm db:push`
+  4) 运行：`pnpm start:dev`
+
+- Docker/Compose：
+  1) 构建镜像：`docker compose build`
+  2) 一次性同步 Schema：`docker compose run --rm server npx prisma db push`
+  3) 后台启动：`docker compose up -d`
+
+- 管理员种子（可选）：设置以下环境变量，启动时将自动 upsert（见 `PrismaService.ensureAdminSeed`）：
+  - `ADMIN_USERNAME=admin`
+  - `ADMIN_PASSWORD=admin123`
+  - `ADMIN_ROLE=admin`
+
+---
+
 ## 项目文档链接（Project Docs Links）
 - 设计方案（中文）：`f:\trae\sheets\轻量级多维表格设计方案.md`
 - 进度 ToDoList（中文）：`f:\trae\sheets\轻量级多维表格开发方案进度todolist.md`
