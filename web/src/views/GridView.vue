@@ -37,32 +37,27 @@ const conflicts = ref<Array<{
 let luckysheetLib: any | null = null
 
 function ensureLuckysheetStyles() {
-  if (!document.getElementById('luckysheet-plugins-css')) {
-    const link = document.createElement('link')
-    link.id = 'luckysheet-plugins-css'
-    link.rel = 'stylesheet'
-    link.href = 'https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/plugins.css'
-    document.head.appendChild(link)
-  }
+  // 已移除外链插件样式加载，避免 CDN 问题
 }
 
 async function ensureLuckysheet() {
   if (luckysheetLib) return luckysheetLib
   ensureLuckysheetStyles()
-  // 在加载 Luckysheet 前确保 mousewheel 插件已挂载到 jQuery（仅使用 CDN 注入，避免打包解析失败）
+  // 确保 mousewheel 插件可用（备用方案），避免外链 CDN 被浏览器 ORB 拦截
   try {
     const any$ = (window as any).jQuery || (window as any).$
     if (!any$?.fn?.mousewheel) {
-      await new Promise<void>((resolve, reject) => {
-        const s = document.createElement('script')
-        s.src = 'https://cdn.jsdelivr.net/npm/jquery-mousewheel@3.1.13/jquery.mousewheel.min.js'
-        s.onload = () => resolve()
-        s.onerror = (err) => reject(err)
-        document.head.appendChild(s)
-      }).catch(err => console.warn('CDN jquery-mousewheel 加载失败', err))
+      try {
+        any$!.fn.mousewheel = function(handler: any) {
+          return this.on('wheel', function(e: any) {
+            const delta = e.originalEvent && e.originalEvent.deltaY > 0 ? -1 : 1
+            handler.call(this, e, delta)
+          })
+        }
+      } catch {}
     }
   } catch (e) {
-    console.warn('jquery-mousewheel 兼容处理异常（可忽略或稍后重试）', e)
+    console.warn('mousewheel 插件备用实现挂载失败', e)
   }
   // 动态导入 luckysheet，确保依赖顺序正确
   const mod: any = await import('luckysheet')
@@ -702,7 +697,7 @@ onMounted(load)
     <div v-if="loading" class="state">加载中…</div>
     <div v-else-if="error" class="state error">{{ error }}</div>
 
-    <div v-else id="luckysheet" style="height: calc(100vh - 140px); width: 100%;"></div>
+    <div v-else id="luckysheet" style="height: 100vh; width: 100%;"></div>
   </div>
 </template>
 

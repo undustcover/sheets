@@ -17,3 +17,4 @@ uploads/
 
 # Prisma artifacts
 server/prisma/migrations/
+server/prisma/*.db
