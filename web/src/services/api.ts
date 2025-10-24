@@ -36,10 +36,13 @@ export const api = {
   listFields: (tableId: number) => request(`/api/tables/${tableId}/fields`),
   createField: (tableId: number, payload: { name: string; type: string; optionsJson?: any; readonly?: boolean }) =>
     request(`/api/tables/${tableId}/fields`, { method: 'POST', body: JSON.stringify(payload) }),
+  removeField: (tableId: number, id: number) =>
+    request(`/api/tables/${tableId}/fields/${id}`, { method: 'DELETE' }),
   listRecords: (tableId: number, page = 1, size = 20) => request(`/api/tables/${tableId}/records?page=${page}&size=${size}`),
   createRecord: (tableId: number, payload: { values: Record<string, any>; formulas?: Record<string, string> }) =>
     request(`/api/tables/${tableId}/records`, { method: 'POST', body: JSON.stringify(payload) }),
   updateRecord: (tableId: number, id: number, payload: any) => request(`/api/tables/${tableId}/records/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteRecord: (tableId: number, id: number) => request(`/api/tables/${tableId}/records/${id}`, { method: 'DELETE' }),
   importCsv: async (tableId: number, file: File) => {
     const token = getToken()
     const fd = new FormData()
@@ -120,4 +123,6 @@ export const api = {
     err.details = body?.details
     throw err
   },
+  // 新增：创建表
+  createTable: (payload: { name: string }) => request(`/api/tables`, { method: 'POST', body: JSON.stringify(payload) }),
 }

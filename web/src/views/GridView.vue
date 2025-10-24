@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../services/api'
 import 'luckysheet/dist/css/luckysheet.css'
+// import 'luckysheet/dist/plugins/css/plugins.css' // 移除不可解析的路径
+import $ from 'jquery'
+// Remove static luckysheet import to ensure $ is defined before module init
+// import * as LuckysheetMod from 'luckysheet'
+// const luckysheetStatic: any = (LuckysheetMod as any).default || LuckysheetMod
+;(window as any).$ = ($ as any).default || $
+;(window as any).jQuery = ($ as any).default || $
 
 const route = useRoute()
 const viewId = computed(() => Number(route.params.viewId))
@@ -29,13 +36,38 @@ const conflicts = ref<Array<{
 
 let luckysheetLib: any | null = null
 
+function ensureLuckysheetStyles() {
+  if (!document.getElementById('luckysheet-plugins-css')) {
+    const link = document.createElement('link')
+    link.id = 'luckysheet-plugins-css'
+    link.rel = 'stylesheet'
+    link.href = 'https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/plugins.css'
+    document.head.appendChild(link)
+  }
+}
+
 async function ensureLuckysheet() {
   if (luckysheetLib) return luckysheetLib
-  const jQuery = await import('jquery')
-  ;(window as any).$ = (jQuery as any).default || jQuery
-  ;(window as any).jQuery = (jQuery as any).default || jQuery
-  const mod = await import('luckysheet')
-  luckysheetLib = (mod as any).default || mod
+  ensureLuckysheetStyles()
+  // 在加载 Luckysheet 前确保 mousewheel 插件已挂载到 jQuery（仅使用 CDN 注入，避免打包解析失败）
+  try {
+    const any$ = (window as any).jQuery || (window as any).$
+    if (!any$?.fn?.mousewheel) {
+      await new Promise<void>((resolve, reject) => {
+        const s = document.createElement('script')
+        s.src = 'https://cdn.jsdelivr.net/npm/jquery-mousewheel@3.1.13/jquery.mousewheel.min.js'
+        s.onload = () => resolve()
+        s.onerror = (err) => reject(err)
+        document.head.appendChild(s)
+      }).catch(err => console.warn('CDN jquery-mousewheel 加载失败', err))
+    }
+  } catch (e) {
+    console.warn('jquery-mousewheel 兼容处理异常（可忽略或稍后重试）', e)
+  }
+  // 动态导入 luckysheet，确保依赖顺序正确
+  const mod: any = await import('luckysheet')
+  luckysheetLib = mod?.default || mod
+  ;(window as any).luckysheet = luckysheetLib
   return luckysheetLib
 }
 
@@ -138,57 +170,67 @@ async function renderLuckysheet() {
   if (!container) return
   try { (window as any).luckysheet?.destroy?.() } catch {}
 
+  let autoSaveTimer: any = null
+  function scheduleAutoSave() {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer)
+    autoSaveTimer = setTimeout(() => { if (!saving.value) saveDirty() }, 1000)
+  }
+
   const luckysheet = await ensureLuckysheet()
 
-  luckysheet.create({
-    container: 'luckysheet',
-    lang: 'zh',
-    showinfobar: false,
-    data: [
-      {
-        name: view.value ? view.value.name : 'Sheet1',
-        index: 0,
-        status: 1,
-        row: Math.max(dataRows.length + 2, 50),
-        column: Math.max(cols.length + 2, 10),
-        celldata,
-      },
-    ],
-    hook: {
-      // 捕获用户编辑后的更新事件，建立坐标到记录/字段的映射（M2-04）
-      updated: (operate: any) => {
-        try {
-          const range = operate?.range?.[0]
-          const r = range?.row?.[0]
-          const c = range?.column?.[0]
-          if (typeof r !== 'number' || typeof c !== 'number') return
-
-          // 只读区域：列头与 ID 列，立即还原
-          if (r === 0 || c === 0) {
+  try {
+    luckysheet.create({
+      container: 'luckysheet',
+      lang: 'zh',
+      showinfobar: true,
+      showtoolbar: true,
+      showsheetbar: true,
+      data: [
+        {
+          name: view.value ? view.value.name : 'Sheet1',
+          index: 0,
+          status: 1,
+          row: Math.max(dataRows.length + 2, 50),
+          column: Math.max(cols.length + 2, 10),
+          celldata,
+        },
+      ],
+      hook: {
+        updated: (operate: any) => {
+          try {
+            const range = operate?.range?.[0]
+            const r = range?.row?.[0]
+            const c = range?.column?.[0]
+            if (typeof r !== 'number' || typeof c !== 'number') return
+            if (r === 0 || c === 0) {
+              const ov = originalValue(r, c)
+              ;(window as any).luckysheet?.setCellValue?.(r, c, ov)
+              return
+            }
+            const key = coordToKey(r, c)
+            if (!key) return
+            const cur = (window as any).luckysheet?.getCellValue?.(r, c, { type: 'm' })
             const ov = originalValue(r, c)
-            ;(window as any).luckysheet?.setCellValue?.(r, c, ov)
-            alert('该单元格为只读：列头/ID 列')
-            return
-          }
-
-          const key = coordToKey(r, c)
-          if (!key) return
-
-          // 读取当前显示值作为写入值（v/m 取 m 的展示值）
-          const cur = (window as any).luckysheet?.getCellValue?.(r, c, { type: 'm' })
-          const ov = originalValue(r, c)
-          // 去除无效编辑：与原值一致时清除缓冲
-          if (String(cur ?? '') === String(ov ?? '')) {
-            dirtyWrites.value = dirtyWrites.value.filter(x => !(x.recordId === key.recordId && x.fieldId === key.fieldId))
-            return
-          }
-          upsertDirtyWrite(key.recordId, key.fieldId, cur, r, c)
-        } catch (e) {
-          console.warn('luckysheet.updated hook error', e)
+            if (String(cur ?? '') === String(ov ?? '')) {
+              dirtyWrites.value = dirtyWrites.value.filter(x => !(x.recordId === key.recordId && x.fieldId === key.fieldId))
+              return
+            }
+            upsertDirtyWrite(key.recordId, key.fieldId, cur, r, c)
+            scheduleAutoSave()
+          } catch (e) { console.warn('luckysheet.updated hook error', e) }
         }
       }
+    })
+  } catch (e: any) {
+    const msg = String(e?.message || e || '')
+    if (msg.includes('ERR_ABORTED')) {
+      console.warn('Luckysheet 初始化被中断，稍后重试', e)
+      setTimeout(() => { renderLuckysheet().catch(() => {}) }, 300)
+    } else {
+      console.error('Luckysheet 初始化失败', e)
+      error.value = `Luckysheet 初始化失败：${e?.message || e}`
     }
-  })
+  }
 }
 
 function fieldName(fid: string) {
@@ -349,11 +391,23 @@ async function load() {
     } else {
       fields.value = []
     }
+    // 先结束 loading，确保容器渲染出来，再初始化 Luckysheet
+    loading.value = false
+    await nextTick()
     await renderLuckysheet()
   } catch (e: any) {
-    error.value = e?.message || '加载失败'
+    const msg = String(e?.message || e || '')
+    if (msg.includes('ERR_ABORTED')) {
+      console.warn('加载被中断，忽略并稍后重试', e)
+      error.value = null
+      loading.value = false
+      setTimeout(async () => { try { await renderLuckysheet() } catch (err) { console.warn('重试渲染失败', err) } }, 300)
+    } else {
+      error.value = msg || '加载失败'
+      loading.value = false
+    }
   } finally {
-    loading.value = false
+    // 已在成功或失败路径中处理 loading 状态
   }
 }
 
@@ -385,6 +439,89 @@ async function goto(p: number) {
   await load()
 }
 
+// 结构操作：获取当前选中单元格的左上角坐标
+function getSelectedCell(): { row: number; column: number } | null {
+  try {
+    const range = (window as any).luckysheet?.getRange?.()
+    const r = range?.[0]?.row?.[0]
+    const c = range?.[0]?.column?.[0]
+    if (typeof r === 'number' && typeof c === 'number') return { row: r, column: c }
+  } catch {}
+  return null
+}
+
+function hasActiveFilterOrSort(): boolean {
+  const hasFilter = filterItems.value.length > 0
+  const hasSort = !!sortItem
+  return hasFilter || hasSort
+}
+
+async function addRow() {
+  if (!view.value?.tableId) return alert('尚未加载视图')
+  if (hasActiveFilterOrSort()) return alert('筛选/排序开启时禁用结构变更，请先清除条件')
+  try {
+    await api.createRecord(view.value.tableId, { values: {} })
+    await load()
+    alert('已新增一行')
+  } catch (e: any) {
+    alert(e?.message || '新增行失败')
+  }
+}
+
+async function deleteSelectedRow() {
+  if (!view.value?.tableId) return alert('尚未加载视图')
+  if (hasActiveFilterOrSort()) return alert('筛选/排序开启时禁用结构变更，请先清除条件')
+  const sel = getSelectedCell()
+  const key = sel ? coordToKey(sel.row, sel.column) : null
+  const recordId = key?.recordId ?? null
+  const targetId = recordId ?? Number(prompt('请输入要删除的记录ID'))
+  if (!Number.isFinite(targetId)) return
+  const confirmed = window.confirm(`确认删除记录 #${targetId}？该操作不可撤销。`)
+  if (!confirmed) return
+  try {
+    await api.deleteRecord(view.value.tableId, Number(targetId))
+    await load()
+    alert(`记录 #${targetId} 已删除`)
+  } catch (e: any) {
+    alert(e?.message || '删除行失败')
+  }
+}
+
+async function addColumn() {
+  if (!view.value?.tableId) return alert('尚未加载视图')
+  if (hasActiveFilterOrSort()) return alert('筛选/排序开启时禁用结构变更，请先清除条件')
+  const name = prompt('新列名称（1-128 字符）', '新列')
+  if (!name || !name.trim()) return
+  const type = prompt('字段类型（text/number/select/multi_select/date/boolean/formula）', 'text') || 'text'
+  try {
+    await api.createField(view.value.tableId, { name: name.trim(), type, optionsJson: {} })
+    await load()
+    alert(`已新增列：${name}`)
+  } catch (e: any) {
+    alert(e?.message || '新增列失败（可能需要管理员权限）')
+  }
+}
+
+async function deleteSelectedColumn() {
+  if (!view.value?.tableId) return alert('尚未加载视图')
+  if (hasActiveFilterOrSort()) return alert('筛选/排序开启时禁用结构变更，请先清除条件')
+  const sel = getSelectedCell()
+  const column = sel?.column ?? null
+  if (column === null || column <= 0) return alert('请选中要删除的列中的任意单元格（不含ID列/列头）')
+  const fidStr = columnIds.value[column - 1]
+  const fid = Number(fidStr)
+  if (!Number.isFinite(fid)) return alert('无法解析选中列对应的字段ID')
+  const confirmed = window.confirm(`确认删除列 “${fieldName(fidStr)}”(#${fid})？该操作不可撤销。`)
+  if (!confirmed) return
+  try {
+    await api.removeField(view.value.tableId, fid)
+    await load()
+    alert(`列 #${fid} 已删除`)
+  } catch (e: any) {
+    alert(e?.message || '删除列失败（可能需要管理员权限）')
+  }
+}
+
 // 批量保存（M2-05）：发送变更缓冲到后端，处理并发冲突
 async function saveDirty() {
   if (!view.value || dirtyWrites.value.length === 0) return
@@ -406,25 +543,16 @@ async function saveDirty() {
       if (typeof latest === 'number') {
         view.value.revision = latest
       }
-      
       // 存储冲突信息用于高亮显示（M2-05b）
       if (e?.details?.conflicts && Array.isArray(e.details.conflicts)) {
         conflicts.value = e.details.conflicts
       } else {
         conflicts.value = []
       }
-      
       await load()
       await renderLuckysheet() // 重新渲染以应用冲突高亮
-      
       const conflictCount = conflicts.value.length
-      if (conflictCount > 0) {
-        alert(`检测到版本冲突：已更新到最新数据，发现 ${conflictCount} 个冲突单元格（已高亮显示），请确认后重新保存。`)
-      } else {
-        alert('检测到版本冲突：已更新到最新数据，请确认后重新保存。')
-      }
-    } else if (e?.status === 403) {
-      alert('保存失败：没有编辑权限或存在只读记录/字段。')
+      alert(`保存失败：检测到 ${conflictCount} 个冲突，请在面板中选择解决方案后重试。`)
     } else {
       alert(e?.message || '保存失败')
     }
@@ -565,134 +693,16 @@ onMounted(load)
         <strong>视图</strong>
         <span v-if="view">#{{ view.id }} {{ view.name }} (rev {{ view.revision }})</span>
       </div>
-      <div class="actions">
-        <label>
-          每页：
-          <select v-model.number="size" @change="goto(1)">
-            <option :value="10">10</option>
-            <option :value="20">20</option>
-            <option :value="50">50</option>
-          </select>
-        </label>
-        <button @click="goto(page - 1)">上一页</button>
-        <span>第 {{ page }} 页 / 共 {{ Math.max(1, Math.ceil(total / size)) }} 页</span>
-        <button @click="goto(page + 1)">下一页</button>
-        <!-- M2-04：编辑缓冲状态显示与操作入口（保存留到 M2-05） -->
-        <span v-if="dirtyWrites.length > 0" class="dirty-indicator">未保存变更 {{ dirtyWrites.length }} 项</span>
-        <button :disabled="dirtyWrites.length === 0 || saving" @click="clearDirtyWrites">撤销全部</button>
-        <button :disabled="dirtyWrites.length === 0 || saving" @click="saveDirty">{{ saving ? '保存中…' : '保存变更' }}</button>
-        <!-- M2-06：筛选与排序入口 -->
-        <button class="btn-secondary" @click="toggleFilterPanel">{{ showFilterPanel ? '隐藏条件' : '筛选/排序' }}</button>
-        <button class="btn-primary" @click="applyFilterSort">应用条件</button>
-      </div>
+      <div class="actions"><!-- 使用 Luckysheet 工具栏进行操作 --></div>
     </header>
 
-    <!-- M2-06：筛选/排序面板 -->
-    <section v-if="showFilterPanel" class="filter-panel">
-      <div class="filters">
-        <h4>筛选条件</h4>
-        <div v-for="(it, idx) in filterItems" :key="idx" class="filter-row">
-          <select v-model="it.fid">
-            <option v-for="fid in columnIds" :key="fid" :value="String(fid)">{{ fieldName(fid) }}</option>
-          </select>
-          <select v-model="it.op">
-            <option v-for="op in opsForField(it.fid)" :key="op.value" :value="op.value">{{ op.label }}</option>
-          </select>
-          <template v-if="it.op === 'between'">
-            <input :type="inputTypeForField(it.fid)" v-model="it.val" placeholder="最小值/开始日期" />
-            <input :type="inputTypeForField(it.fid)" v-model="it.val2" placeholder="最大值/结束日期" />
-          </template>
-          <template v-else-if="fieldType(it.fid) === 'boolean'">
-            <select v-model="it.val">
-              <option :value="true">真</option>
-              <option :value="false">假</option>
-            </select>
-          </template>
-          <template v-else>
-            <input :type="inputTypeForField(it.fid)" v-model="it.val" placeholder="值（多个值用逗号分隔用于 in）" />
-          </template>
-          <button class="btn-secondary" @click="removeFilter(idx)">删除</button>
-        </div>
-        <button class="btn-secondary" @click="addFilter">新增条件</button>
-      </div>
-      <div class="sort">
-        <h4>排序</h4>
-        <div class="sort-row">
-          <select v-model="(sortItem || (sortItem = { fid: String(columnIds[0] || ''), dir: 'asc' })).fid">
-            <option v-for="fid in columnIds" :key="fid" :value="String(fid)">{{ fieldName(fid) }}</option>
-          </select>
-          <select v-model="(sortItem || (sortItem = { fid: String(columnIds[0] || ''), dir: 'asc' })).dir">
-            <option value="asc">升序</option>
-            <option value="desc">降序</option>
-          </select>
-        </div>
-      </div>
-    </section>
+    <!-- 关闭自建筛选/排序面板，改用 Luckysheet 工具栏过滤/排序 -->
+    <!-- <section v-if="showFilterPanel" class="filter-panel"> ... </section> -->
 
-    <div class="filter-actions" v-if="showFilterPanel">
-      <button class="btn-primary" @click="saveViewConfig">保存到视图配置</button>
-    </div>
     <div v-if="loading" class="state">加载中…</div>
     <div v-else-if="error" class="state error">{{ error }}</div>
 
-    <!-- M2-05b：冲突解决面板 -->
-    <div v-else-if="conflicts.length > 0" class="conflict-panel">
-      <div class="conflict-header">
-        <h3>🔥 检测到 {{ conflicts.length }} 个数据冲突</h3>
-        <p>以下单元格在您编辑期间被其他用户修改，请选择保留哪个版本：</p>
-      </div>
-      <div class="conflict-list">
-        <div v-for="(conflict, index) in conflicts" :key="`${conflict.recordId}-${conflict.fieldId}`" class="conflict-item">
-          <div class="conflict-info">
-            <strong>记录 #{{ conflict.recordId }} - {{ fieldName(String(conflict.fieldId)) }}</strong>
-          </div>
-          <div class="conflict-values">
-             <div class="value-option current">
-               <label>
-                 <input type="radio" :name="`conflict-${index}`" value="current" checked>
-                 <span class="label">服务器最新值：</span>
-                 <div class="value-details">
-                   <code class="value-code">{{ formatConflictValue(conflict.currentValue) }}</code>
-                   <span v-if="conflict.currentFormulaExpr" class="formula-expr">
-                     公式: <code>{{ conflict.currentFormulaExpr }}</code>
-                   </span>
-                 </div>
-               </label>
-             </div>
-             <div class="value-option attempted">
-               <label>
-                 <input type="radio" :name="`conflict-${index}`" value="attempted">
-                 <span class="label">您的修改值：</span>
-                 <div class="value-details">
-                   <code class="value-code">{{ formatConflictValue(conflict.attemptedValue) }}</code>
-                   <span v-if="conflict.attemptedFormulaExpr" class="formula-expr">
-                     公式: <code>{{ conflict.attemptedFormulaExpr }}</code>
-                   </span>
-                 </div>
-               </label>
-             </div>
-             <!-- 差异对比 -->
-             <div class="diff-summary">
-               <strong>差异：</strong>
-               <span v-if="conflict.currentValue === conflict.attemptedValue" class="diff-none">
-                 值相同，但可能存在公式差异
-               </span>
-               <span v-else class="diff-exists">
-                 {{ formatValueDiff(conflict.currentValue, conflict.attemptedValue) }}
-               </span>
-             </div>
-           </div>
-        </div>
-      </div>
-      <div class="conflict-actions">
-        <button @click="resolveConflicts('accept-all-current')" class="btn-secondary">全部保留服务器版本</button>
-        <button @click="resolveConflicts('accept-all-attempted')" class="btn-primary">全部保留我的修改</button>
-        <button @click="resolveConflicts('accept-selected')" class="btn-primary">按选择解决冲突</button>
-        <button @click="conflicts = []" class="btn-secondary">取消（清除冲突标记）</button>
-      </div>
-    </div>
-
-    <div v-else id="luckysheet" style="height: calc(100vh - 140px);"></div>
+    <div v-else id="luckysheet" style="height: calc(100vh - 140px); width: 100%;"></div>
   </div>
 </template>
 
