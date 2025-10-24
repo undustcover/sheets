@@ -17,7 +17,16 @@ async function request(path: string, init?: RequestInit) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
   const resp = await fetch(`${API_BASE}${path}`, { ...(init || {}), headers: { ...headers, ...(init?.headers || {}) } })
-  if (!resp.ok) throw new Error(`${path} failed: ${resp.status}`)
+  if (!resp.ok) {
+    let body: any = null
+    try { body = await resp.json() } catch {}
+    const msg = body?.message || `${path} failed: ${resp.status}`
+    const err: any = new Error(msg)
+    err.status = resp.status
+    err.code = body?.code
+    err.details = body?.details
+    throw err
+  }
   return resp.json()
 }
 
@@ -30,6 +39,8 @@ export const api = {
   },
   listTables: () => request('/api/tables'),
   getTable: (id: number) => request(`/api/tables/${id}`),
+  updateTable: (id: number, payload: { name?: string; metaJson?: any; exportAllowedRoles?: string[]; anonymousEnabled?: boolean }) =>
+    request(`/api/tables/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   listFields: (tableId: number) => request(`/api/tables/${tableId}/fields`),
   createField: (tableId: number, payload: { name: string; type: string; optionsJson?: any; readonly?: boolean }) =>
     request(`/api/tables/${tableId}/fields`, { method: 'POST', body: JSON.stringify(payload) }),
@@ -68,7 +79,11 @@ export const api = {
     if (opts?.size) params.set('size', String(opts.size))
     if (opts?.filters) params.set('filters', JSON.stringify(opts.filters))
     if (opts?.sort) params.set('sort', JSON.stringify(opts.sort))
-    const resp = await fetch(`${API_BASE}/api/views/${viewId}/data?${params.toString()}`)
+    const token = getToken()
+    const path = token ? `/api/views/${viewId}/data/authed` : `/api/views/${viewId}/data`
+    const resp = await fetch(`${API_BASE}${path}?${params.toString()}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
     if (!resp.ok) throw new Error(`View data failed: ${resp.status}`)
     return resp.json()
   },
@@ -128,5 +143,5 @@ export const api = {
     throw err
   },
   // 新增：创建表
-  createTable: (payload: { name: string }) => request(`/api/tables`, { method: 'POST', body: JSON.stringify(payload) }),
+  createTable: (payload: { name: string; anonymousEnabled?: boolean }) => request(`/api/tables`, { method: 'POST', body: JSON.stringify(payload) }),
 }

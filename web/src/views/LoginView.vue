@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const username = ref('admin')
-const password = ref('admin123')
+const password = ref('admin')
 const error = ref<string | null>(null)
 const loading = ref(false)
 

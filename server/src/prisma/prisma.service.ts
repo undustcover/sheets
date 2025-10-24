@@ -6,6 +6,11 @@ import * as argon2 from 'argon2';
 export class PrismaService extends PrismaClient implements OnModuleInit {
   async onModuleInit() {
     await this.$connect();
+    // Debug: print current DATABASE_URL
+    try {
+      const url = process.env.DATABASE_URL;
+      console.log('[PrismaService] DATABASE_URL =', url);
+    } catch {}
     await this.ensureAdminSeed();
   }
 
@@ -21,12 +26,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       : 'admin';
 
     const hash = await argon2.hash(password);
-    // 使用 upsert 避免并发导致的唯一约束冲突
     await this.user.upsert({
       where: { username },
       update: { password: hash, role },
       create: { username, password: hash, role },
     });
-    // 可扩展：写入审计日志 Log(action=login) 等
   }
 }

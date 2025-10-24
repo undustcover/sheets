@@ -8,6 +8,13 @@ export class RateLimitGuard implements CanActivate {
   private static allow = Number(process.env.RATE_LIMIT_MAX ?? 5);
 
   canActivate(context: ExecutionContext): boolean {
+    // 开发环境默认关闭限流，或通过环境变量显式关闭
+    const isDev = (process.env.NODE_ENV && process.env.NODE_ENV !== 'production') || !process.env.NODE_ENV;
+    const disabled = process.env.RATE_LIMIT_DISABLED === '1';
+    if (isDev || disabled) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const ip = this.extractIp(request);
     const key = `${ip}:${request.path || request.url || ''}`;
@@ -21,7 +28,8 @@ export class RateLimitGuard implements CanActivate {
     RateLimitGuard.store.set(key, fresh);
 
     if (fresh.length > RateLimitGuard.allow) {
-      throw new HttpException('登录请求过多，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
+      // 生产环境：不返回 429，改为 403，并提示友好文案
+      throw new HttpException('1分钟内只能登录5次', HttpStatus.FORBIDDEN);
     }
     return true;
   }

@@ -16,7 +16,7 @@ export class TablesService {
     return this.prisma.table.findUnique({ where: { id } });
   }
 
-  async create(data: { name: string; metaJson?: any; exportAllowedRoles?: Role[] }) {
+  async create(data: { name: string; metaJson?: any; exportAllowedRoles?: Role[]; anonymousEnabled?: boolean }) {
     const exportRoles = data.exportAllowedRoles && data.exportAllowedRoles.length > 0
       ? data.exportAllowedRoles
       : ['editor', 'exporter', 'admin'] as Role[];
@@ -25,21 +25,23 @@ export class TablesService {
         name: data.name,
         metaJson: (data.metaJson ?? {}) as any,
         exportAllowedRoles: exportRoles as any,
-      },
+        anonymousEnabled: data.anonymousEnabled ?? false,
+      } as any,
     });
     await this.prisma.log.create({ data: { action: LogAction.create_table, tableId: created.id } });
     return created;
   }
 
-  async update(id: number, data: { name?: string; metaJson?: any; exportAllowedRoles?: Role[] }) {
+  async update(id: number, data: { name?: string; metaJson?: any; exportAllowedRoles?: Role[]; anonymousEnabled?: boolean }) {
     const updated = await this.prisma.table.update({
       where: { id },
-      data: {
+      data: ({
         ...(data.name ? { name: data.name } : {}),
         ...(data.metaJson !== undefined ? { metaJson: data.metaJson as any } : {}),
         ...(data.exportAllowedRoles ? { exportAllowedRoles: data.exportAllowedRoles as any } : {}),
+        ...(data.anonymousEnabled !== undefined ? { anonymousEnabled: data.anonymousEnabled } : {}),
         revision: { increment: 1 },
-      },
+      } as any),
     });
     await this.prisma.log.create({ data: { action: LogAction.update_table, tableId: id } });
     return updated;

@@ -1,4 +1,4 @@
-# 后端接口契约（MVP）
+# 后端接口契约（MVP)
 
 说明：`/api` 为统一前缀；所有响应采用统一错误结构 `{ code, message, details? }`；分页统一 `{ page, size }`；过滤 DSL `{ fieldId, op, value }`；排序 `{ fieldId, direction }`。
 
@@ -6,7 +6,7 @@
 - POST `/api/auth/login`
   - body: `{ username, password }`
   - 200: `{ token, user: { id, username, role } }`
-  - 429/401/400
+  - 403/401/400（生产环境限流返回 403，消息：1分钟内只能登录5次；开发环境默认关闭限流）
 - POST `/api/auth/logout`
   - 200: `{ success: true }`
 - GET `/api/auth/me`
@@ -73,6 +73,10 @@
 - GET `/api/views/:id/data?page&size&filters&sort`
   - 若 `anonymousEnabled=true`，允许无需 JWT 访问；只读视图，不返回敏感字段
 
+登录态读取（新增）：
+- GET `/api/views/:id/data/authed?page&size&filters&sort`
+  - 需要 `Authorization: Bearer <token>`；不受 `anonymousEnabled` 限制；用于登录用户访问非匿名视图数据
+
 ## Attachments（10GB 总配额 + MIME 白名单 + 单文件 50MB）
 - POST `/api/tables/:id/attachments`
   - 413: 超过单文件大小；415: MIME 不在白名单
@@ -95,7 +99,8 @@
 - GET `/api/logs?page&size&action&userId&tableId`
 
 ## 错误码
-- `AUTH_FAILED` `FORBIDDEN` `NOT_FOUND` `VALIDATION_FAILED` `READONLY` `REVISION_CONFLICT` `RATE_LIMITED` `ATTACHMENT_MIME_INVALID` `ATTACHMENT_SIZE_EXCEEDED` `IMPORT_TOO_LARGE`
+- `AUTH_FAILED` `FORBIDDEN` `NOT_FOUND` `VALIDATION_FAILED` `READONLY` `REVISION_CONFLICT` `ATTACHMENT_MIME_INVALID` `ATTACHMENT_SIZE_EXCEEDED` `IMPORT_TOO_LARGE`
+- 说明：登录限流在生产环境返回 `403 FORBIDDEN`（不使用 `429 RATE_LIMITED`）；消息为“1分钟内只能登录5次”。
 
 —— 完 ——
 

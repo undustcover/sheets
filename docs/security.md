@@ -1,4 +1,4 @@
-# 安全与权限策略（MVP）
+# 安全策略（MVP）
 
 ## 角色与权限
 - 角色：`viewer`（只读）、`editor`（读写）、`exporter`（读写+导出）、`admin`（管理）。
@@ -13,18 +13,23 @@
 - 后端：写入请求校验只读限制，拒绝并返回 `403`。
 
 ## 认证与会话
+- JWT（`HS256`，默认过期 7d）。
 - 登录：用户名+密码（Argon2/BCrypt 哈希）；成功返回 JWT。
 - 会话：JWT 承载用户与角色；服务端验证与过期时间控制。
-- 速率限制：登录接口限流；防止暴力破解。
+- 登录失败与错误提示统一：`{ code, message, details? }`。
+- 速率限制：生产环境登录超限返回 `403`，消息“1分钟内只能登录5次”；开发环境或 `RATE_LIMIT_DISABLED=1` 时禁用；可通过环境变量调整窗口与次数，用于防止暴力破解。
 
-## 授权校验点（后端）
+## 授权校验点
+- 所有表格操作仅管理员可用（`Role.admin`）。
 - `GET /tables/:id`：校验表读权限。
 - `POST/PUT/DELETE /tables/:id/fields`：校验表写权限。
 - `POST /tables/:id/cells/batch`：
   - 校验表写权限；
   - 校验行/列只读；
   - 校验 `tables/views.revision`。
-- `GET /views/:id/data`：校验表读权限；过滤结果按照视图配置返回。
+- 视图数据读取：
+  - 匿名读取：`GET /views/:id/data`：校验表读权限；过滤结果按照视图配置返回；是否允许取决于视图 `anonymousEnabled`。
+  - 登录态读取（新增）：`GET /views/:id/data/authed`：需 JWT，不受匿名开关限制。
 - `POST /tables/:id/import`：校验表写权限。
 - `GET /tables/:id/export`：校验导出权限（由表配置决定）。
 - `POST /attachments/upload`：校验表写与大小/类型；重命名策略。

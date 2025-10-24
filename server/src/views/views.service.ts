@@ -55,27 +55,41 @@ export class ViewsService {
   }
 
   async getData(viewId: number, params?: { page?: number; size?: number; filters?: Array<{ fieldId: number; op: string; value?: any }>; sort?: { fieldId: number; direction: 'asc'|'desc' } }, allowAnonymous = false) {
-    const view = await this.prisma.view.findUnique({ where: { id: viewId } });
-    if (!view) throw new BadRequestException('View not found');
-    if (!allowAnonymous && !view.anonymousEnabled) {
-      // 若非匿名访问，调用端需通过守卫验证；此处双重保护
-      // 未开启匿名访问且未通过认证时直接拒绝
-      throw new UnauthorizedException('ANONYMOUS_DISABLED');
+    const view = await this.prisma.view.findUnique({ where: { id: viewId } })
+    if (!view) throw new BadRequestException('View not found')
+    // 同时校验视图与表的匿名授权
+    if (allowAnonymous) {
+      if (!view.anonymousEnabled) {
+        throw new UnauthorizedException('ANONYMOUS_DISABLED')
+      }
+      const table = await this.prisma.table.findUnique({ where: { id: view.tableId } })
+      if (!table) throw new BadRequestException('Table not found')
+      console.log('[ViewsService.getData] anon-check', { viewId, allowAnonymous, viewAnon: view.anonymousEnabled, tableAnon: (table as any)?.anonymousEnabled })
+      if (!(table as any).anonymousEnabled) {
+        throw new UnauthorizedException('TABLE_ANONYMOUS_DISABLED')
+      }
     }
 
-    const cfg = (view.configJson ?? {}) as any;
-    const mergedFilters = params?.filters ?? (Array.isArray(cfg.filters) ? cfg.filters : undefined);
-    const mergedSort = params?.sort ?? (cfg.sort && cfg.sort.fieldId ? cfg.sort : undefined);
-    const page = params?.page ?? cfg.page ?? 1;
-    const size = params?.size ?? cfg.size ?? 20;
+    const cfg = (view.configJson ?? {}) as any
+    const mergedFilters = params?.filters ?? (Array.isArray(cfg.filters) ? cfg.filters : undefined)
+    const mergedSort = params?.sort ?? (cfg.sort && cfg.sort.fieldId ? cfg.sort : undefined)
+    const page = params?.page ?? cfg.page ?? 1
+    const size = params?.size ?? cfg.size ?? 20
 
     const result = await this.records.list(view.tableId, {
       page,
       size,
       filters: mergedFilters,
       sort: mergedSort,
-    });
+    })
 
-    return { view: { id: view.id, tableId: view.tableId, name: view.name, type: view.type, revision: view.revision, configJson: (view.configJson ?? {}) as any }, ...result };
+    // 附带字段元数据，便于匿名模式前端渲染列头与类型
+    const fields = await this.prisma.field.findMany({
+      where: { tableId: view.tableId },
+      orderBy: { id: 'asc' },
+      select: { id: true, name: true, type: true, readonly: true },
+    })
+
+    return { view: { id: view.id, tableId: view.tableId, name: view.name, type: view.type, revision: view.revision, configJson: (view.configJson ?? {}) as any }, fields, ...result }
   }
 }

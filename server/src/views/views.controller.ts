@@ -40,7 +40,7 @@ export class ViewsController {
   }
 }
 
-// 公共读取接口：允许匿名视图访问
+// 公共读取接口：允许匿名视图访问 + 登录态读取
 @Controller('api/views')
 export class ViewDataController {
   constructor(private readonly views: ViewsService) {}
@@ -77,5 +77,41 @@ export class ViewDataController {
       filters: parsedFilters,
       sort: parsedSort,
     }, true);
+  }
+
+  // 新增：登录态读取视图数据（不受匿名开关限制）
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.viewer, Role.editor, Role.exporter, Role.admin)
+  @Get(':id/data/authed')
+  async getDataAuthed(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page?: string,
+    @Query('size') size?: string,
+    @Query('filters') filters?: string,
+    @Query('sort') sort?: string,
+  ) {
+    let parsedFilters: Array<{ fieldId: number; op: string; value?: any }> | undefined;
+    let parsedSort: { fieldId: number; direction: 'asc' | 'desc' } | undefined;
+
+    if (filters) {
+      try {
+        const f = JSON.parse(filters);
+        if (Array.isArray(f)) parsedFilters = f.map((x) => ({ fieldId: Number(x.fieldId), op: String(x.op), value: x.value }));
+      } catch {}
+    }
+
+    if (sort) {
+      try {
+        const s = JSON.parse(sort);
+        if (s && s.fieldId) parsedSort = { fieldId: Number(s.fieldId), direction: s.direction === 'desc' ? 'desc' : 'asc' };
+      } catch {}
+    }
+
+    return await this.views.getData(id, {
+      page: page ? Number(page) : undefined,
+      size: size ? Number(size) : undefined,
+      filters: parsedFilters,
+      sort: parsedSort,
+    }, false);
   }
 }

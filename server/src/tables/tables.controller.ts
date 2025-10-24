@@ -25,12 +25,12 @@ export class TablesController {
 
   @Post()
   async create(@Body() dto: CreateTableDto) {
-    return await this.tables.create({ name: dto.name, metaJson: dto.metaJson, exportAllowedRoles: dto.exportAllowedRoles });
+    return await this.tables.create({ name: dto.name, metaJson: dto.metaJson, exportAllowedRoles: dto.exportAllowedRoles, anonymousEnabled: dto.anonymousEnabled });
   }
 
   @Put(':id')
   async update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTableDto) {
-    return await this.tables.update(id, { name: dto.name, metaJson: dto.metaJson, exportAllowedRoles: dto.exportAllowedRoles });
+    return await this.tables.update(id, { name: dto.name, metaJson: dto.metaJson, exportAllowedRoles: dto.exportAllowedRoles, anonymousEnabled: dto.anonymousEnabled });
   }
 
   @Delete(':id')

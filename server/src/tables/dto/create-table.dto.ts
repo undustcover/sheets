@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, MaxLength, MinLength, IsEnum, IsObject } from 'class-validator';
+import { IsArray, IsOptional, IsString, MaxLength, MinLength, IsEnum, IsObject, IsBoolean } from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateTableDto {
@@ -15,4 +15,8 @@ export class CreateTableDto {
   @IsArray()
   @IsEnum(Role, { each: true })
   exportAllowedRoles?: Role[];
+
+  @IsOptional()
+  @IsBoolean()
+  anonymousEnabled?: boolean;
 }

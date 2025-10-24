@@ -63,6 +63,7 @@ model Table {
   revision           Int          @default(0)
   metaJson           Json
   exportAllowedRoles Json
+  anonymousEnabled   Boolean      @default(false)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
   fields             Field[]

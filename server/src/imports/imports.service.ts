@@ -82,7 +82,9 @@ export class ImportsService {
     const byName = new Map(fields.map((f) => [f.name, f]));
     const byIdStr = new Map(fields.map((f) => [String(f.id), f]));
 
-    const encoding = opts?.encoding || 'utf-8';
+    // 修复 Buffer.toString 的编码类型：将 'utf-8' 归一化为 'utf8'
+    const requestedEncoding = (opts?.encoding || 'utf8').toLowerCase();
+    const encoding: BufferEncoding = (requestedEncoding === 'utf-8' ? 'utf8' : (requestedEncoding as BufferEncoding));
     const text = file.buffer.toString(encoding);
     const delimiter = opts?.delimiter === '\t' ? '\t' : (opts?.delimiter || ',');
     const rows = this.parseCsv(text, delimiter);
@@ -158,7 +160,7 @@ export class ImportsService {
       // 生成失败报告（dryRun）
       if (errors.length > 0) {
         const errMap = new Map<number, string[]>();
-        for (const e of errors) errMap.set(e.rowIndex, e.issues.map(i => `col${i.columnIndex + 1}${i.fieldId ? `(#${i.fieldId})` : ''}: ${i.message}`));
+        for (const e of errors) errMap.set(e.rowIndex, e.issues.map(i => 'col' + (i.columnIndex + 1) + (i.fieldId ? '(#' + i.fieldId + ')' : '') + ': ' + i.message));
         const rowsReport = Array.from(errMap.keys()).map((rowIndex) => {
           const idxInBody = hasHeader ? rowIndex - 2 : rowIndex - 1;
           const src = body[idxInBody] || [];
@@ -295,7 +297,7 @@ export class ImportsService {
         if (falseSet.has(v)) return { ok: true, value: false };
         return { ok: false, message: `${field.name} 需要布尔值` };
       }
-      case FieldType.single_select: {
+      case FieldType.select: {
         const options: string[] = Array.isArray(opts.options) ? opts.options : [];
         if (!options.includes(s)) return { ok: false, message: `${field.name} 选项无效：${s}` };
         return { ok: true, value: s };

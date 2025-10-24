@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { clearToken, getToken } from './services/api'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const authed = ref(!!getToken())
+const authed = computed(() => !!getToken())
 
 function logout() {
   clearToken()
-  authed.value = false
   router.push('/login')
 }
 </script>

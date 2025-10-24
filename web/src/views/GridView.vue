@@ -22,7 +22,7 @@ const records = ref<Array<{ id: number; values: Record<string, any> }>>([])
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
-const fields = ref<Array<{ id: number; name: string; type?: string }>>([])
+const fields = ref<Array<{ id: number; name: string; type?: string; readonly?: boolean }>>([])
 
 // 冲突状态：记录发生冲突的单元格信息（M2-05b）
 const conflicts = ref<Array<{
@@ -37,7 +37,7 @@ const conflicts = ref<Array<{
 let luckysheetLib: any | null = null
 
 function ensureLuckysheetStyles() {
-  // 已移除外链插件样式加载，避免 CDN 问题
+  // 已移 outer 链插件样式加载，避免 CDN 问题
 }
 
 async function ensureLuckysheet() {
@@ -87,38 +87,61 @@ const columnIds = computed(() => {
 })
 
 // 变更缓冲：记录用户在 Luckysheet 中的编辑（M2-04）
-const dirtyWrites = ref<Array<{ recordId: number; fieldId: string; value: any; row: number; column: number }>>([])
+const dirtyWrites = ref<Array<{ recordId: number; fieldId: string; value: any; formulaExpr?: string; row: number; column: number }>>([])
 
-function coordToKey(row: number, column: number): { recordId: number; fieldId: string } | null {
-  // 行/列 0 为只读：列头与 ID 列
-  if (row <= 0 || column <= 0) return null
-  const rec = records.value[row - 1]
-  const fid = columnIds.value[column - 1]
-  if (!rec || !fid) return null
-  return { recordId: rec.id, fieldId: fid }
+function fieldById(fid: string): { id: number; name: string; type?: string; readonly?: boolean } | undefined {
+  return fields.value.find((x) => String(x.id) === String(fid))
 }
 
-function originalValue(row: number, column: number): any {
-  if (row === 0 && column === 0) return 'ID'
-  if (row === 0 && column > 0) {
-    const name = fieldName(columnIds.value[column - 1])
-    return name
+function fieldType(fid: string): string | undefined {
+  const f = fieldById(fid)
+  return f?.type
+}
+
+function isFieldReadonly(fid: string): boolean {
+  const f = fieldById(fid)
+  return !!f?.readonly
+}
+
+function coerceWriteValue(fid: string, raw: any): any {
+  const t = fieldType(fid)
+  if (t === 'number') {
+    const n = Number(raw)
+    return Number.isNaN(n) ? null : n
   }
-  if (row > 0 && column === 0) {
-    const rec = records.value[row - 1]
-    return rec?.id ?? ''
+  if (t === 'boolean') {
+    if (raw === true || raw === false) return raw
+    if (typeof raw === 'string') {
+      const s = raw.trim().toLowerCase()
+      if (s === 'true' || s === '是' || s === 'yes') return true
+      if (s === 'false' || s === '否' || s === 'no') return false
+    }
+    return null
   }
-  const rec = records.value[row - 1]
-  const fid = columnIds.value[column - 1]
-  return getCellValue(rec, fid)
+  if (t === 'multi_select') {
+    if (Array.isArray(raw)) return raw
+    const arr = String(raw ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+    return arr
+  }
+  // text/select/date/default: 允许字符串或空
+  if (raw === undefined) return null
+  return raw
 }
 
 function upsertDirtyWrite(recordId: number, fieldId: string, value: any, row: number, column: number) {
   const idx = dirtyWrites.value.findIndex(x => x.recordId === recordId && x.fieldId === fieldId)
-  if (idx >= 0) {
-    dirtyWrites.value[idx] = { recordId, fieldId, value, row, column }
+  const t = fieldType(fieldId)
+  let payload: { value: any; formulaExpr?: string } = { value: value }
+  if (t === 'formula') {
+    payload = { value: null, formulaExpr: typeof value === 'string' ? value : String(value ?? '') }
   } else {
-    dirtyWrites.value.push({ recordId, fieldId, value, row, column })
+    payload = { value: coerceWriteValue(fieldId, value) }
+  }
+  const next = { recordId, fieldId, row, column, ...payload }
+  if (idx >= 0) {
+    dirtyWrites.value[idx] = next
+  } else {
+    dirtyWrites.value.push(next)
   }
 }
 
@@ -204,6 +227,14 @@ async function renderLuckysheet() {
             }
             const key = coordToKey(r, c)
             if (!key) return
+            // 只读拦截：记录或字段只读则还原
+            const rec = records.value[r - 1]
+            if (rec?.readonly || isFieldReadonly(key.fieldId)) {
+              const ov = originalValue(r, c)
+              ;(window as any).luckysheet?.setCellValue?.(r, c, ov)
+              alert('该单元格为只读，无法编辑')
+              return
+            }
             const cur = (window as any).luckysheet?.getCellValue?.(r, c, { type: 'm' })
             const ov = originalValue(r, c)
             if (String(cur ?? '') === String(ov ?? '')) {
@@ -252,11 +283,8 @@ function toggleFilterPanel() { showFilterPanel.value = !showFilterPanel.value }
 function addFilter() { filterItems.value.push({ fid: String(columnIds.value[0] || ''), op: 'eq', val: '' }) }
 function removeFilter(idx: number) { filterItems.value.splice(idx, 1) }
 
-// 类型辅助：根据字段 ID 获取类型
-function fieldType(fid: string): string | undefined {
-  const f = fields.value.find((x) => String(x.id) === String(fid))
-  return f?.type
-}
+// 类型辅助：根据字段 ID 获取类型（已在前文定义，避免重复声明）
+// 使用前文的 fieldType(fid) 实现
 
 function opsForField(fid: string): Array<{ value: string; label: string }> {
   const t = fieldType(fid)
@@ -380,9 +408,24 @@ async function load() {
     total.value = resp.total
     // 加载字段名与类型用于列头显示与类型适配
     const tableId = resp.view?.tableId ?? undefined
-    if (tableId) {
-      const fs = await api.listFields(tableId)
-      fields.value = Array.isArray(fs) ? fs.map((f: any) => ({ id: f.id, name: f.name, type: f.type })) : []
+    // 优先使用后端视图数据响应中的字段元数据（匿名可用）
+    if (Array.isArray((resp as any).fields)) {
+      const fs = (resp as any).fields
+      fields.value = fs.map((f: any) => ({ id: f.id, name: f.name, type: f.type, readonly: !!f.readonly }))
+    } else if (tableId) {
+      try {
+        const fs = await api.listFields(tableId)
+        fields.value = Array.isArray(fs) ? fs.map((f: any) => ({ id: f.id, name: f.name, type: f.type, readonly: !!f.readonly })) : []
+      } catch (err: any) {
+        // 未登录或无权限时获取字段失败（401），退化为匿名渲染：仅用记录中的列ID
+        const msg = String(err?.message || '')
+        if (msg.includes('401')) {
+          console.warn('匿名视图：字段列表获取 401，降级为无字段元数据渲染')
+          fields.value = []
+        } else {
+          throw err
+        }
+      }
     } else {
       fields.value = []
     }
@@ -522,30 +565,27 @@ async function saveDirty() {
   if (!view.value || dirtyWrites.value.length === 0) return
   const tableId = view.value.tableId
   const revision = view.value.revision
-  const writes = dirtyWrites.value.map(w => ({ recordId: w.recordId, fieldId: Number(w.fieldId), value: w.value }))
+  const writes = dirtyWrites.value.map(w => ({ recordId: w.recordId, fieldId: Number(w.fieldId), value: w.value, formulaExpr: w.formulaExpr }))
   try {
     saving.value = true
     const resp = await api.batchCellsWrite(tableId, { revision, writes })
-    // 成功：更新本地 revision，清空缓冲并重新加载
     view.value.revision = resp.revision
     clearDirtyWrites()
     await load()
     alert(`保存成功，revision 更新为 ${resp.revision}`)
   } catch (e: any) {
-    // 并发冲突：提示最新版本并刷新视图数据，但保留缓冲以便用户确认后重试
     if (e?.status === 409) {
       const latest = e?.details?.latestRevision
       if (typeof latest === 'number') {
         view.value.revision = latest
       }
-      // 存储冲突信息用于高亮显示（M2-05b）
       if (e?.details?.conflicts && Array.isArray(e.details.conflicts)) {
         conflicts.value = e.details.conflicts
       } else {
         conflicts.value = []
       }
       await load()
-      await renderLuckysheet() // 重新渲染以应用冲突高亮
+      await renderLuckysheet()
       const conflictCount = conflicts.value.length
       alert(`保存失败：检测到 ${conflictCount} 个冲突，请在面板中选择解决方案后重试。`)
     } else {
